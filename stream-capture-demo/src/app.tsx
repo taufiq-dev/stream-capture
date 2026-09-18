@@ -235,6 +235,10 @@ const App = () => {
           Open the camera twice in a row on a phone with more than one rear camera. The first open scores
           the cameras; the second reuses the cached choice.
         </Lead>
+        <Lead>
+          <strong>Nothing leaves your device.</strong> There is no backend here — a captured photo is held
+          in this page&rsquo;s memory to display, and is gone when you close the tab.
+        </Lead>
       </header>
 
       <Card>

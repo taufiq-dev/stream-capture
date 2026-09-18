@@ -33,6 +33,21 @@ your own machine; a phone needs the HTTPS server, and will warn once about the c
 The demo is also where the component is type-checked — `stream-capture/` has no `tsconfig` of its
 own, and `pnpm typecheck` in the demo covers both.
 
+## Deploying the demo
+
+The demo is static, so Cloudflare Pages serves it as-is. Put your account id in
+`stream-capture-demo/wrangler.jsonc` first — `pnpm wrangler whoami` lists them — then:
+
+```sh
+cd stream-capture-demo
+pnpm wrangler login
+pnpm deploy          # builds, then wrangler pages deploy
+```
+
+Nothing is stored or transmitted by the demo: a captured photo lives in the page's memory until the
+tab closes. A camera-permission prompt on a public URL deserves that said plainly, so the page says
+it too.
+
 ## How it works
 
 **Choosing the camera** (`camera-selection.ts`). `facingMode: "environment"` only promises *a* rear

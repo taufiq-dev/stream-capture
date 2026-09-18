@@ -1,0 +1,4 @@
+# wrangler ships prebuilt native binaries (workerd, esbuild) that need their install scripts to run.
+allowBuilds:
+  esbuild: true
+  workerd: true

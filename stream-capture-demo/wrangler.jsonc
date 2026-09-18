@@ -1,0 +1,14 @@
+{
+  // Cloudflare Pages project for the demo. Static output only — there is no Worker, no backend and
+  // nothing stored: the captured image never leaves the browser.
+  "name": "stream-capture-demo",
+
+  // REPLACE THIS before the first deploy. Run `pnpm wrangler whoami` to list your accounts and copy
+  // the id of the personal one. Pinning it here means `deploy` never prompts and never guesses,
+  // which is what you want with more than one Cloudflare account. The account id is not a secret —
+  // it appears in every dashboard URL — unlike an API token, which never belongs in the repo.
+  "account_id": "REPLACE_WITH_PERSONAL_ACCOUNT_ID",
+
+  "compatibility_date": "2026-09-18",
+  "pages_build_output_dir": "./dist"
+}

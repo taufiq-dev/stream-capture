@@ -8,7 +8,8 @@
     "dev:http": "DEMO_HTTP=1 rsbuild dev --port 3001",
     "build": "rsbuild build",
     "preview": "rsbuild preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "deploy": "rsbuild build && wrangler pages deploy"
   },
   "dependencies": {
     "react": "^19.3.0",
@@ -22,6 +23,8 @@
     "@rsbuild/plugin-react": "^2.1.0",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
-    "typescript": "^7.0.2"
-  }
+    "typescript": "^7.0.2",
+    "wrangler": "^4.133.0"
+  },
+  "packageManager": "pnpm@11.24.0"
 }
