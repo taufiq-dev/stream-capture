@@ -1,14 +1,13 @@
 {
-  // Cloudflare Pages project for the demo. Static output only — there is no Worker, no backend and
-  // nothing stored: the captured image never leaves the browser.
+  // A static-assets-only Worker: no server code, no backend, nothing stored — the captured image
+  // never leaves the browser. `assets.directory` is rsbuild's output, uploaded and served as-is.
   "name": "stream-capture-demo",
-
-  // Deploys come from the dashboard's Git integration, which already knows which account the
-  // project belongs to. If you ever deploy from your own machine instead, add
-  //   "account_id": "<id from `pnpm wrangler whoami`>"
-  // here so it picks the right one of your two accounts without prompting. It is not a secret —
-  // it appears in every dashboard URL — unlike an API token, which never belongs in the repo.
-
   "compatibility_date": "2026-09-18",
-  "pages_build_output_dir": "./dist"
+  "assets": { "directory": "./dist" }
+
+  // Deploys run from the dashboard's Git integration, which knows which account this belongs to.
+  // To deploy from your own machine instead, add
+  //   "account_id": "<id from `pnpm wrangler whoami`>"
+  // so it picks the right one of your two accounts without prompting. Not a secret — it is in every
+  // dashboard URL — unlike an API token, which never belongs in the repo.
 }

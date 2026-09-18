@@ -35,13 +35,14 @@ own, and `pnpm typecheck` in the demo covers both.
 
 ## Deploying the demo
 
-The demo is static, so Cloudflare Pages serves it as-is. Put your account id in
-`stream-capture-demo/wrangler.jsonc` first — `pnpm wrangler whoami` lists them — then:
+The demo is static, so it deploys as an assets-only Worker — no server code involved. The
+dashboard's Git integration builds it on every push to `main`, with preview URLs for pull requests.
+To deploy by hand instead:
 
 ```sh
 cd stream-capture-demo
 pnpm wrangler login
-pnpm deploy          # builds, then wrangler pages deploy
+pnpm deploy          # builds, then wrangler deploy
 ```
 
 Nothing is stored or transmitted by the demo: a captured photo lives in the page's memory until the
