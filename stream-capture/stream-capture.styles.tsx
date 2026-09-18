@@ -12,20 +12,22 @@ const SLIDE = "0.6s";
 // definition. The crop reads the rendered box via getBoundingClientRect(), so it is always exactly
 // what the user saw — including after URL-bar or orientation changes.
 export const CameraContainer = styled.div`
+  /* inset instead of width/height in viewport units: the sheet then fills whatever the browser
+     considers the viewport, with no unit to get wrong. */
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
+  inset: 0;
   overflow: hidden;
   z-index: 10000;
   background-color: black;
 
-  /* Dynamic viewport height where supported, so the layout tracks the URL bar. */
+  /* The geometry below is measured from this element at runtime (see stream-capture.tsx) — mobile
+     Safari's vh/dvh do not reliably match what is on screen. These are the fallbacks used for the
+     first paint, and if ResizeObserver is missing. */
   --sc-viewport-height: 100vh;
+  --sc-viewport-width: 100vw;
   @supports (height: 100dvh) {
     --sc-viewport-height: 100dvh;
   }
-  height: var(--sc-viewport-height);
 
   --sc-guide-inset: 16px;
   /* Width ÷ height. Set per instance from the guideAspectRatio prop; this is only the fallback. */
@@ -35,11 +37,11 @@ export const CameraContainer = styled.div`
      window would otherwise compute a box taller than the viewport. Then it shrinks and centres. */
   --sc-guide-max-height: calc(var(--sc-viewport-height) * 0.5);
   --sc-guide-width: min(
-    calc(100vw - 2 * var(--sc-guide-inset)),
+    calc(var(--sc-viewport-width) - 2 * var(--sc-guide-inset)),
     calc(var(--sc-guide-max-height) * var(--sc-guide-ratio))
   );
   --sc-guide-height: calc(var(--sc-guide-width) / var(--sc-guide-ratio));
-  --sc-guide-left: calc((100vw - var(--sc-guide-width)) / 2);
+  --sc-guide-left: calc((var(--sc-viewport-width) - var(--sc-guide-width)) / 2);
   --sc-guide-top: calc((var(--sc-viewport-height) - var(--sc-guide-height)) * 0.2);
   --sc-guide-bottom: calc(var(--sc-guide-top) + var(--sc-guide-height));
 
@@ -150,7 +152,7 @@ export const GuidelineTextBox = styled.div`
   left: 50%;
   transform: translate(-50%, -50%);
   width: 330px;
-  max-width: calc(100vw - 32px);
+  max-width: calc(var(--sc-viewport-width) - 32px);
   text-align: center;
   transition: opacity 0.3s ease-out;
 

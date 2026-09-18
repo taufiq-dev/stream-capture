@@ -72,6 +72,7 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
   onCameraReport,
   enableCameraSwitch = false,
 }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const guideRef = useRef<HTMLDivElement | null>(null);
   const closeTimerRef = useRef<number | null>(null);
 
@@ -137,6 +138,60 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
     },
     [],
   );
+
+  // A full-screen sheet over a page that scrolls. Locking the page is not only politeness: on iOS a
+  // fixed overlay above a scrolled document is offset by the visual viewport, which crops the sheet
+  // off the top of the screen. Freezing the body at its current offset keeps the two in step, and
+  // the position is restored on the way out.
+  useEffect(() => {
+    const { body } = document;
+    const scrollY = window.scrollY;
+    const previous = {
+      position: body.style.position,
+      top: body.style.top,
+      left: body.style.left,
+      right: body.style.right,
+      overflow: body.style.overflow,
+    };
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.left = "0";
+    body.style.right = "0";
+    body.style.overflow = "hidden";
+    return () => {
+      body.style.position = previous.position;
+      body.style.top = previous.top;
+      body.style.left = previous.left;
+      body.style.right = previous.right;
+      body.style.overflow = previous.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  // The guide geometry is derived from the sheet's real size rather than from vh/dvh, which mobile
+  // Safari resolves against a viewport that is not always the one on screen. Re-measured when the
+  // URL bar slides, on rotation, and on keyboard show/hide.
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      element.style.setProperty("--sc-viewport-width", `${rect.width}px`);
+      element.style.setProperty("--sc-viewport-height", `${rect.height}px`);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
+  }, []);
 
   // `opened` once per mount, and `abandoned` if the parent tears the sheet down without it closing —
   // between them every session is accounted for exactly once.
@@ -245,6 +300,7 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
 
   return (
     <CameraContainer
+      ref={containerRef}
       className="camera-container"
       data-capturing={isCapturing}
       data-closing={isClosing}
