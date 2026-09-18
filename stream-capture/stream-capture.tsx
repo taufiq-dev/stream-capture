@@ -168,30 +168,71 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
     };
   }, []);
 
-  // The guide geometry is derived from the sheet's real size rather than from vh/dvh, which mobile
-  // Safari resolves against a viewport that is not always the one on screen. Re-measured when the
-  // URL bar slides, on rotation, and on keyboard show/hide.
+  // The sheet pins itself to the *visual* viewport, and the guide geometry derives from its measured
+  // size rather than from vh/dvh.
+  //
+  // `position: fixed` is laid out against the layout viewport, and on iOS the two viewports fall out
+  // of step — most reliably right after the camera permission prompt, which leaves the page offset
+  // by however far the toolbars moved. A fixed sheet then sits above the screen, and stays there
+  // across reopens, because nothing recomputes it until the user scrolls. Reading visualViewport
+  // directly is that recomputation, so the sheet lands correctly without being nudged.
+  const measureRef = useRef<(() => void) | null>(null);
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
+    const viewport = window.visualViewport;
+
     const measure = () => {
+      if (viewport) {
+        // Assign only on change: this element is under a ResizeObserver that calls back here.
+        const pinned: Record<string, string> = {
+          top: `${viewport.offsetTop}px`,
+          left: `${viewport.offsetLeft}px`,
+          width: `${viewport.width}px`,
+          height: `${viewport.height}px`,
+        };
+        for (const [property, value] of Object.entries(pinned)) {
+          if (element.style.getPropertyValue(property) !== value) {
+            element.style.setProperty(property, value);
+          }
+        }
+      }
       const rect = element.getBoundingClientRect();
       element.style.setProperty("--sc-viewport-width", `${rect.width}px`);
       element.style.setProperty("--sc-viewport-height", `${rect.height}px`);
     };
+    measureRef.current = measure;
     measure();
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", measure);
-      return () => window.removeEventListener("resize", measure);
-    }
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    window.visualViewport?.addEventListener("resize", measure);
+
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(element);
+    viewport?.addEventListener("resize", measure);
+    viewport?.addEventListener("scroll", measure); // toolbar slides arrive here, not as a resize
+    window.addEventListener("orientationchange", measure);
+    if (!observer) window.addEventListener("resize", measure);
+
     return () => {
-      observer.disconnect();
-      window.visualViewport?.removeEventListener("resize", measure);
+      measureRef.current = null;
+      observer?.disconnect();
+      viewport?.removeEventListener("resize", measure);
+      viewport?.removeEventListener("scroll", measure);
+      window.removeEventListener("orientationchange", measure);
+      if (!observer) window.removeEventListener("resize", measure);
     };
   }, []);
+
+  // Permission prompts are dismissed between frames, and iOS reports the settled viewport late, so
+  // the transition out of "loading" is measured again on the next frame and once more after it.
+  useEffect(() => {
+    const remeasure = () => measureRef.current?.();
+    remeasure();
+    const frame = requestAnimationFrame(remeasure);
+    const timer = window.setTimeout(remeasure, 350);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(timer);
+    };
+  }, [state.status]);
 
   // `opened` once per mount, and `abandoned` if the parent tears the sheet down without it closing —
   // between them every session is accounted for exactly once.
