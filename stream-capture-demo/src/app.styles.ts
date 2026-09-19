@@ -223,3 +223,45 @@ export const UploadedImage = styled.img`
 export const Focused = styled(FocusedImage)`
   border-radius: ${({ theme }) => theme.component.uploadArea.borderRadius};
 `;
+
+// Label / value pairs for the capture readout. Two columns where there is room, stacked on a phone —
+// the values are numbers to compare, so they line up under each other rather than running as prose.
+export const Stats = styled.dl`
+  margin: 0;
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: ${({ theme }) => `${theme.foundation.space[4]} ${theme.foundation.space[16]}`};
+  align-items: baseline;
+
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+`;
+
+export const StatLabel = styled.dt`
+  font-size: 13px;
+  color: ${({ theme }) => theme.foundation.color.textMuted};
+`;
+
+export const StatValue = styled.dd`
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 480px) {
+    margin-bottom: ${({ theme }) => theme.foundation.space[8]};
+  }
+`;
+
+// A figure can hold only one <figcaption>, and it reads better below the image; this is the heading
+// that goes above it.
+export const FigureLabel = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+`;
+
+export const Note = styled.p`
+  margin: 0;
+  font-size: 13px;
+  color: ${({ theme }) => theme.foundation.color.textMuted};
+`;

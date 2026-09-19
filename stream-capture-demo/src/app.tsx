@@ -4,7 +4,7 @@
 // sheet opens it records a "session" — what the camera cache held beforehand, and whether a
 // selection report arrived — which is what makes the cached-session behaviour visible.
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type SyntheticEvent } from "react";
 import { forgetCamera, type SelectionReport } from "@stream-capture/camera-selection";
 import type { StreamCaptureEvent } from "@stream-capture/events";
 import StreamCapture, { GUIDE_ASPECT } from "@stream-capture/stream-capture";
@@ -18,15 +18,20 @@ import {
   Count,
   Field,
   Figure,
+  FigureLabel,
   Focused,
   Lead,
   Mono,
   Muted,
+  Note,
   Page,
   Row,
   Scroll,
   SessionItem,
   SessionList,
+  StatLabel,
+  Stats,
+  StatValue,
   Title,
   UploadedImage,
 } from "./app.styles";
@@ -50,7 +55,18 @@ type Session = {
   outcome: "open" | "captured" | "cancelled";
 };
 
-type Captured = { dataUrl: string; meta: CapturedImageMeta };
+type Captured = {
+  id: number;
+  dataUrl: string;
+  meta: CapturedImageMeta;
+  // The settings the sheet ran under, kept beside the image. The controls can be changed after a
+  // capture, so the readout has to describe the file that exists, not the one the next open would
+  // produce.
+  cropMargin: number;
+  guideAspectRatio: number;
+};
+
+const kb = (bytes: number): string => `${(bytes / 1024).toFixed(0)} KB`;
 
 type LoggedEvent = { seq: number; event: StreamCaptureEvent };
 
@@ -70,7 +86,9 @@ const describeEvent = (event: StreamCaptureEvent): string => {
     case "capture_succeeded":
       return `${event.image.width}×${event.image.height} · ${(event.image.bytes / 1024).toFixed(0)} KB · q${
         event.image.quality
-      } · ${event.durationMs} ms · ${event.source}`;
+      }${event.focused ? ` · box ${(event.focused.bytes / 1024).toFixed(0)} KB` : ""} · ${
+        event.durationMs
+      } ms · ${event.source}`;
     case "capture_failed":
       return event.message;
     case "cancel_clicked":
@@ -172,10 +190,187 @@ const SessionRow = ({ session }: { session: Session }) => {
   );
 };
 
+type Size = { width: number; height: number };
+
+const formatSize = (size: Size | null): string => (size ? `${size.width} × ${size.height}` : "measuring…");
+
+// Measures what is on screen, live. The card's claim is that two different-looking figures are one
+// file, so the sizes it prints are read back from the DOM rather than computed from the numbers that
+// produced them — a mistake in the CSS crop would show up here instead of hiding behind arithmetic.
+const useRenderedSize = () => {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [size, setSize] = useState<Size | null>(null);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    const measure = () => {
+      const rect = element.getBoundingClientRect();
+      setSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return [ref, size] as const;
+};
+
+// Mounted with a key per capture, so the measurements never outlive the image they describe.
+const LastCapture = ({ captured }: { captured: Captured }) => {
+  const { dataUrl, meta, cropMargin, guideAspectRatio } = captured;
+  const [uploadedRef, uploadedSize] = useRenderedSize();
+  const [focusedRef, focusedSize] = useRenderedSize();
+  const [uploadedPixels, setUploadedPixels] = useState<Size | null>(null);
+  const [focusedPixels, setFocusedPixels] = useState<Size | null>(null);
+
+  const readPixels =
+    (set: (size: Size) => void) =>
+    (event: SyntheticEvent<HTMLImageElement>): void =>
+      set({ width: event.currentTarget.naturalWidth, height: event.currentTarget.naturalHeight });
+
+  // The guide box in the encoded image: the fractions in meta.focus, back in pixels.
+  const region = {
+    width: Math.round(meta.focus.width * meta.width),
+    height: Math.round(meta.focus.height * meta.height),
+  };
+  // What choosing the box over the padded crop actually costs, in bytes. Null when there is no
+  // second file to compare against.
+  const uploadedBytes = approxBytes(dataUrl);
+  const saving = meta.focused
+    ? Math.round((1 - meta.focused.bytes / uploadedBytes) * 100)
+    : null;
+  const sameFile =
+    uploadedPixels !== null &&
+    focusedPixels !== null &&
+    uploadedPixels.width === focusedPixels.width &&
+    uploadedPixels.height === focusedPixels.height;
+
+  return (
+    <Card>
+      <CardTitle>Last capture</CardTitle>
+
+      <Stats>
+        <StatLabel>Uploaded file</StatLabel>
+        <StatValue>
+          {meta.width} × {meta.height} px · ~{kb(uploadedBytes)} JPEG
+        </StatValue>
+
+        <StatLabel>Guide box within it</StatLabel>
+        <StatValue>
+          {region.width} × {region.height} px · {(region.width / region.height).toFixed(3)} : 1{" "}
+          <Muted>(the box on screen was {guideAspectRatio.toFixed(3)} : 1)</Muted>
+        </StatValue>
+
+        <StatLabel>Focused file</StatLabel>
+        <StatValue>
+          {meta.focused ? (
+            <>
+              {meta.focused.width} × {meta.focused.height} px · {kb(meta.focused.bytes)} JPEG{" "}
+              {saving === null ? null : saving > 0 ? (
+                <Muted>({saving}% smaller than the upload above)</Muted>
+              ) : (
+                <Muted>(the same file — no margin to encode away)</Muted>
+              )}
+            </>
+          ) : (
+            <Muted>not requested — encodeFocused is off</Muted>
+          )}
+        </StatValue>
+
+        <StatLabel>Margin for the backend</StatLabel>
+        <StatValue>
+          {cropMargin === 0 ? (
+            <Muted>none — cut to the box exactly</Muted>
+          ) : (
+            `${(cropMargin * 100).toFixed(0)}% of the box on every side`
+          )}
+        </StatValue>
+
+        <StatLabel>meta.focus</StatLabel>
+        <StatValue>
+          <Mono>
+            x {meta.focus.x.toFixed(3)} · y {meta.focus.y.toFixed(3)} · w {meta.focus.width.toFixed(3)} · h{" "}
+            {meta.focus.height.toFixed(3)}
+          </Mono>
+        </StatValue>
+      </Stats>
+
+      <Figure>
+        <FigureLabel>1 · Sent to uploadImage</FigureLabel>
+        <div ref={uploadedRef}>
+          <UploadedImage
+            src={dataUrl}
+            alt="The uploaded capture, margin included"
+            onLoad={readPixels(setUploadedPixels)}
+          />
+        </div>
+        <figcaption>
+          The whole crop — the guide box plus the margin, so the backend has room to find the card’s
+          edges and correct its perspective.
+          <br />
+          <Mono>
+            {formatSize(uploadedPixels)} decoded · {formatSize(uploadedSize)} on screen
+          </Mono>
+        </figcaption>
+      </Figure>
+
+      <Figure>
+        <FigureLabel>2 · Shown to the user — &lt;FocusedImage&gt;</FigureLabel>
+        <div ref={focusedRef}>
+          <Focused
+            src={dataUrl}
+            focus={meta.focus}
+            imageWidth={meta.width}
+            imageHeight={meta.height}
+            alt="The same capture, clipped to the guide box"
+            onLoad={readPixels(setFocusedPixels)}
+          />
+        </div>
+        <figcaption>
+          The same file, clipped to <Mono>meta.focus</Mono> in CSS — the margin hidden, nothing
+          re-encoded.
+          <br />
+          <Mono>
+            {formatSize(focusedPixels)} decoded · {formatSize(focusedSize)} on screen
+          </Mono>
+        </figcaption>
+      </Figure>
+
+      <Note>
+        {sameFile ? (
+          <>
+            Both figures decode to the same pixels: one JPEG, encoded once and displayed twice, so
+            figure 2 costs the same ~{kb(uploadedBytes)} as figure 1 — its margin is clipped, not
+            removed.{" "}
+            {meta.focused && saving !== null && saving > 0 ? (
+              <>
+                The file under <Mono>meta.focused</Mono> is the other way round: the margin is
+                encoded away, so it weighs {kb(meta.focused.bytes)}. Send that one when the backend
+                wants the card without the context.
+              </>
+            ) : (
+              <>
+                Switch on <Mono>encodeFocused</Mono> above to also get the box as a file of its own,
+                which is genuinely smaller.
+              </>
+            )}
+          </>
+        ) : (
+          "Waiting for both figures to decode…"
+        )}
+      </Note>
+    </Card>
+  );
+};
+
 const App = () => {
   const [open, setOpen] = useState(false);
   const [enableSwitch, setEnableSwitch] = useState(true);
   const [cropMargin, setCropMargin] = useState(0.08);
+  // On in the demo, off in the component: this is the card that exists to compare the two files.
+  const [encodeFocused, setEncodeFocused] = useState(true);
   const [aspect, setAspect] = useState<number>(GUIDE_ASPECT.DESIGN);
   const [cache, setCache] = useState<CachedCamera | null>(readCache);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -183,6 +378,10 @@ const App = () => {
   const [log, setLog] = useState<LoggedEvent[]>([]);
   const sessionIdRef = useRef(0);
   const seqRef = useRef(0);
+  const captureIdRef = useRef(0);
+  // Read inside handleUpload, which keeps empty deps so its identity never changes under the sheet.
+  const settingsRef = useRef({ cropMargin, guideAspectRatio: aspect });
+  settingsRef.current = { cropMargin, guideAspectRatio: aspect };
 
   const patchCurrentSession = useCallback((patch: Partial<Session>) => {
     const id = sessionIdRef.current;
@@ -216,12 +415,10 @@ const App = () => {
     [patchCurrentSession],
   );
 
-  const handleUpload = useCallback(
-    async (dataUrl: string, meta: CapturedImageMeta) => {
-      setCaptured({ dataUrl, meta });
-    },
-    [],
-  );
+  const handleUpload = useCallback(async (dataUrl: string, meta: CapturedImageMeta) => {
+    captureIdRef.current += 1;
+    setCaptured({ id: captureIdRef.current, dataUrl, meta, ...settingsRef.current });
+  }, []);
 
   const handleClearCache = () => {
     forgetCamera();
@@ -252,6 +449,14 @@ const App = () => {
               onChange={(event) => setEnableSwitch(event.target.checked)}
             />
             enableCameraSwitch
+          </Field>
+          <Field>
+            <input
+              type="checkbox"
+              checked={encodeFocused}
+              onChange={(event) => setEncodeFocused(event.target.checked)}
+            />
+            encodeFocused
           </Field>
           <Field>
             guide box
@@ -295,32 +500,7 @@ const App = () => {
         </div>
       </Card>
 
-      {captured && (
-        <Card>
-          <CardTitle>Last capture</CardTitle>
-          <div>
-            <Mono>
-              {captured.meta.width}×{captured.meta.height} · ~{(approxBytes(captured.dataUrl) / 1024).toFixed(0)} KB ·
-              focus x {captured.meta.focus.x.toFixed(3)}, y {captured.meta.focus.y.toFixed(3)}, w{" "}
-              {captured.meta.focus.width.toFixed(3)}, h {captured.meta.focus.height.toFixed(3)}
-            </Mono>
-          </div>
-          <Figure>
-            <UploadedImage src={captured.dataUrl} alt="Uploaded capture, margin included" />
-            <figcaption>What uploadImage received — guide box plus margin, for the backend.</figcaption>
-          </Figure>
-          <Figure>
-            <Focused
-              src={captured.dataUrl}
-              focus={captured.meta.focus}
-              imageWidth={captured.meta.width}
-              imageHeight={captured.meta.height}
-              alt="Capture cropped to the guide box"
-            />
-            <figcaption>&lt;FocusedImage&gt; — the same file, shown as the user framed it.</figcaption>
-          </Figure>
-        </Card>
-      )}
+      {captured && <LastCapture key={captured.id} captured={captured} />}
 
       <Card>
         <CardTitle>
@@ -383,6 +563,7 @@ const App = () => {
           cropMargin={cropMargin}
           guideAspectRatio={aspect}
           enableCameraSwitch={enableSwitch}
+          encodeFocused={encodeFocused}
           emitEvent={handleEvent}
         />
       )}
