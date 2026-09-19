@@ -1,5 +1,5 @@
 // app.styles.ts
-import styled, { createGlobalStyle } from "styled-components";
+import styled, { createGlobalStyle, css } from "styled-components";
 import FocusedImage from "@stream-capture/focused-image";
 
 export const GlobalStyle = createGlobalStyle`
@@ -48,11 +48,24 @@ export const Card = styled.section`
 
 export const CardTitle = styled.h2`
   margin: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: ${({ theme }) => theme.foundation.space[8]};
   font-size: 13px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: ${({ theme }) => theme.foundation.color.textMuted};
+`;
+
+// How many rows the pane holds, so the total is readable without scrolling it.
+export const Count = styled.span`
+  font-weight: 500;
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
 `;
 
 export const Row = styled.div`
@@ -161,11 +174,28 @@ export const CandidateTable = styled.table`
     border-top: none;
     color: ${({ theme }) => theme.foundation.color.textMuted};
     font-weight: 600;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: ${({ theme }) => theme.foundation.color.surface};
+    /* border-collapse: collapse drops a sticky cell's own border, so draw it inset */
+    box-shadow: inset 0 -1px 0 ${({ theme }) => theme.foundation.color.border};
   }
 `;
 
-export const Scroll = styled.div`
+// Without $maxHeight this is the old horizontal-only scroller (wide tables on a phone).
+// With it, the pane also scrolls vertically and stops adding to the page's height.
+export const Scroll = styled.div<{ $maxHeight?: string }>`
   overflow-x: auto;
+
+  ${({ $maxHeight }) =>
+    $maxHeight &&
+    css`
+      max-height: ${$maxHeight};
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    `}
 `;
 
 export const Figure = styled.figure`

@@ -15,6 +15,7 @@ import {
   CandidateTable,
   Card,
   CardTitle,
+  Count,
   Field,
   Figure,
   Focused,
@@ -294,51 +295,6 @@ const App = () => {
         </div>
       </Card>
 
-      <Card>
-        <CardTitle>Event log — emitEvent</CardTitle>
-        {log.length === 0 ? (
-          <Muted>Nothing yet.</Muted>
-        ) : (
-          <Scroll>
-            <CandidateTable>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Type</th>
-                  <th>+ms</th>
-                  <th>Detail</th>
-                </tr>
-              </thead>
-              <tbody>
-                {log.map(({ seq, event }) => (
-                  <tr key={seq}>
-                    <td>{seq}</td>
-                    <td>
-                      <Mono>{event.type}</Mono>
-                    </td>
-                    <td>{event.elapsedMs}</td>
-                    <td>{describeEvent(event)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </CandidateTable>
-          </Scroll>
-        )}
-      </Card>
-
-      <Card>
-        <CardTitle>Sessions</CardTitle>
-        {sessions.length === 0 ? (
-          <Muted>Nothing yet.</Muted>
-        ) : (
-          <SessionList>
-            {sessions.map((session) => (
-              <SessionRow key={session.id} session={session} />
-            ))}
-          </SessionList>
-        )}
-      </Card>
-
       {captured && (
         <Card>
           <CardTitle>Last capture</CardTitle>
@@ -365,6 +321,59 @@ const App = () => {
           </Figure>
         </Card>
       )}
+
+      <Card>
+        <CardTitle>
+          Sessions
+          {sessions.length > 0 && <Count>{sessions.length}</Count>}
+        </CardTitle>
+        {sessions.length === 0 ? (
+          <Muted>Nothing yet.</Muted>
+        ) : (
+          <Scroll $maxHeight="clamp(200px, 44vh, 420px)">
+            <SessionList>
+              {sessions.map((session) => (
+                <SessionRow key={session.id} session={session} />
+              ))}
+            </SessionList>
+          </Scroll>
+        )}
+      </Card>
+
+      <Card>
+        <CardTitle>
+          Event log — emitEvent
+          {log.length > 0 && <Count>{log.length}</Count>}
+        </CardTitle>
+        {log.length === 0 ? (
+          <Muted>Nothing yet.</Muted>
+        ) : (
+          <Scroll $maxHeight="clamp(160px, 32vh, 300px)">
+            <CandidateTable>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Type</th>
+                  <th>+ms</th>
+                  <th>Detail</th>
+                </tr>
+              </thead>
+              <tbody>
+                {log.map(({ seq, event }) => (
+                  <tr key={seq}>
+                    <td>{seq}</td>
+                    <td>
+                      <Mono>{event.type}</Mono>
+                    </td>
+                    <td>{event.elapsedMs}</td>
+                    <td>{describeEvent(event)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </CandidateTable>
+          </Scroll>
+        )}
+      </Card>
 
       {open && (
         <StreamCapture
