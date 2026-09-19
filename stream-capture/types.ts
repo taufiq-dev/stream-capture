@@ -18,6 +18,16 @@ export type CapturedImageMeta = {
   /** Encoded image size in pixels. */
   width: number;
   height: number;
+  /**
+   * The guide box as a file of its own, present only when `encodeFocused` asked for one. Send this
+   * instead of the first argument when the backend wants the card without the surrounding context.
+   *
+   * <FocusedImage> and this are not the same thing: it hides the margin in CSS and costs the same
+   * bytes as the full crop, while this one has the margin encoded away and is genuinely smaller.
+   * Where there is no margin to remove (`cropMargin` 0) the two files are one and the same, and
+   * `dataUrl` here is the string passed as the first argument.
+   */
+  focused?: { dataUrl: string; width: number; height: number; bytes: number };
 };
 
 export type StreamCaptureProps = {
@@ -64,4 +74,13 @@ export type StreamCaptureProps = {
   onCameraReport?: (report: SelectionReport) => void;
   /** Shows a "switch camera" control when more than one rear camera is available. Off by default. */
   enableCameraSwitch?: boolean;
+  /**
+   * Also encode the guide box on its own and hand it to `uploadImage` as `meta.focused`, so the
+   * call site can choose which file it sends. Off by default: it is a second JPEG encode in the
+   * moment after the shutter, and callers that send the padded crop have no use for it.
+   *
+   * Only worth setting when both files are wanted. When the backend wants nothing but the box,
+   * `cropMargin={0}` gets there in one encode and one file.
+   */
+  encodeFocused?: boolean;
 };

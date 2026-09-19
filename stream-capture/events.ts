@@ -50,6 +50,9 @@ export type StreamCaptureEventPayload =
       /** Tap to encoded data URL: the wait the user actually feels after the shutter. */
       durationMs: number;
       image: { width: number; height: number; bytes: number; quality: number; cropped: boolean };
+      /** The second file, when `encodeFocused` asked for one — what sending the box alone would
+       *  cost, next to `image.bytes`. Null when it was not asked for. */
+      focused: { width: number; height: number; bytes: number } | null;
       source: CaptureResult["source"];
     }
   | { type: "capture_failed"; message: string }

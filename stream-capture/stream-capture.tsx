@@ -71,6 +71,7 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
   onStreamCancel,
   onCameraReport,
   enableCameraSwitch = false,
+  encodeFocused = false,
 }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const guideRef = useRef<HTMLDivElement | null>(null);
@@ -293,9 +294,31 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
 
     try {
       const crop = cropSpecFromElements(guide, video, { margin: cropMargin });
-      const result = await capturePhoto(video, state.stream, { maxBytes: MAX_UPLOAD_BYTES, crop });
+      const result = await capturePhoto(video, state.stream, {
+        maxBytes: MAX_UPLOAD_BYTES,
+        crop,
+        focusedCrop: encodeFocused,
+      });
       const dataUrl = await blobToDataUrl(result.blob);
-      const meta: CapturedImageMeta = { focus: result.focus, width: result.width, height: result.height };
+      // capturePhoto skips the second encode when there is no margin to remove, because the file
+      // above already is the box. The caller still gets a `focused` either way, so a call site that
+      // sends it does not have to care which of the two happened.
+      const focused = !encodeFocused
+        ? undefined
+        : result.focused
+          ? {
+              dataUrl: await blobToDataUrl(result.focused.blob),
+              width: result.focused.width,
+              height: result.focused.height,
+              bytes: result.focused.blob.size,
+            }
+          : { dataUrl, width: result.width, height: result.height, bytes: result.blob.size };
+      const meta: CapturedImageMeta = {
+        focus: result.focus,
+        width: result.width,
+        height: result.height,
+        focused,
+      };
 
       // Where the cut region sits on the element, in CSS px — exact, including the crop margin
       // and any clamping at the frame edge.
@@ -314,6 +337,7 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
           quality: result.quality,
           cropped: result.cropped,
         },
+        focused: focused ? { width: focused.width, height: focused.height, bytes: focused.bytes } : null,
         source: result.source,
       });
 

@@ -88,6 +88,19 @@ framed is what was taken.
 box sits inside it. Pass that to `<FocusedImage>` to show the user just the card while the backend
 keeps the context — no second encode, CSS only.
 
+Which file the backend gets is the call site's choice, and the three ways of making it are not
+equivalent:
+
+- **The backend wants the context.** The default. Send the first argument; show `<FocusedImage>`.
+- **The backend wants only the card.** `cropMargin={0}`. The crop is cut to the box exactly, in one
+  encode and one file, and `<FocusedImage>` becomes a pass-through.
+- **You want both files.** `encodeFocused`. `meta.focused` is then the box on its own, cut from the
+  same full-resolution frame and encoded separately — so it is smaller in bytes, not merely
+  cropped in CSS, and it is not a JPEG of a JPEG. It costs a second encode after the shutter.
+
+`<FocusedImage>` is display, not compression: it hides the margin and carries the whole file's bytes.
+`meta.focused` is the one that is actually smaller.
+
 `emitEvent` is the whole lifecycle as one typed stream (`events.ts`): every session ends in exactly
 one `closed` or `abandoned`, so funnel numbers add up. Handlers are wrapped — analytics that throws
 can never cost someone their capture.

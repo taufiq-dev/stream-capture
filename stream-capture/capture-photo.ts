@@ -27,6 +27,9 @@ export type CaptureOptions = {
   minQuality?: number; // never encode below this; downscale instead
   frames?: number; // frames sampled for sharpness (preview path)
   crop?: CropSpec; // crop to a guide box, computed in source pixels
+  // Also encode the guide box on its own, cut from the same frame — see CaptureResult.focused.
+  // Off by default: it is a second JPEG encode on the path the user waits on.
+  focusedCrop?: boolean;
   // Use ImageCapture.takePhoto() where available. OFF by default: on Android it reconfigures the
   // camera, which visibly shifts the preview's field of view and returns a still whose framing
   // need not match what the user saw — so it must never be combined with a guide-box crop.
@@ -38,19 +41,20 @@ export type CaptureOptions = {
 // image — context included — goes to the backend.
 export type FocusRegion = { x: number; y: number; width: number; height: number };
 
-export type CaptureResult = {
-  blob: Blob;
-  width: number;
-  height: number;
-  quality: number;
+export type Encoded = { blob: Blob; width: number; height: number; quality: number };
+
+export type CaptureResult = Encoded & {
   source: "takePhoto" | "canvas";
   cropped: boolean;
   cropRect: Rect | null; // the region that was cut, in source pixels
   sourceSize: Size; // the frame it was cut from
   focus: FocusRegion; // the guide box within the encoded image; the full image when uncropped
+  // The guide box as a file of its own, when focusedCrop asked for one: the same region `focus`
+  // describes, but with the margin gone rather than hidden — fewer pixels, so fewer bytes. Null
+  // when it was not asked for, and also when the crop carries no margin and `blob` above already
+  // is the box: there is nothing a second encode would add but artifacts.
+  focused: Encoded | null;
 };
-
-type Encoded = Pick<CaptureResult, "blob" | "width" | "height" | "quality">;
 
 const MB = 1024 * 1024;
 const QUALITY_STEPS = [0.95, 0.92, 0.9, 0.88, 0.85, 0.82, 0.8];
@@ -313,6 +317,12 @@ export const cropSpecFromElements = (
 // The capture entry point
 // ---------------------------------------------------------------------------
 
+// Whether the padded crop and the box inside it came out as the same pixels — margin 0, or a margin
+// that clamping at the frame edge swallowed. The second encode is skipped then: it would be a
+// byte-for-byte rerun of the first.
+const sameRect = (a: Rect, b: Rect): boolean =>
+  a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
+
 const sameAspect = (a: Size, b: Size, tolerance = 0.02): boolean =>
   Math.abs(a.width / a.height - b.width / b.height) < tolerance;
 
@@ -327,6 +337,7 @@ export const capturePhoto = async (
     minQuality = 0.85,
     frames = 4,
     crop,
+    focusedCrop = false,
     nativeStill = false,
   } = options;
   if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
@@ -344,12 +355,28 @@ export const capturePhoto = async (
     const region = cropRect ? cropSource(frame, cropRect) : frame;
     const regionSize = cropRect ?? frameSize;
     const encoded = await encodeUnderBudget(region, regionSize.width, regionSize.height, limits);
-    // The margin-less box, located inside the padded crop. Identical to the crop when margin is 0.
-    const focus =
-      crop && cropRect
-        ? focusWithin(cropRect, mapOverlayToSource({ ...crop, margin: 0 }, frameSize))
-        : FULL_FRAME;
-    return { ...encoded, source, cropped: cropRect !== null, cropRect, sourceSize: frameSize, focus };
+
+    // The margin-less box in source pixels. Identical to the crop when margin is 0.
+    const boxRect = crop && cropRect ? mapOverlayToSource({ ...crop, margin: 0 }, frameSize) : null;
+    const focus = cropRect && boxRect ? focusWithin(cropRect, boxRect) : FULL_FRAME;
+
+    // Cut from the same full-resolution frame as the image above — never from the JPEG it produced.
+    // A crop of an encode carries that encode's blocking artifacts into the one image a document
+    // check actually reads, and no amount of quality on the second pass takes them back out.
+    const focused =
+      focusedCrop && cropRect && boxRect && !sameRect(cropRect, boxRect)
+        ? await encodeUnderBudget(cropSource(frame, boxRect), boxRect.width, boxRect.height, limits)
+        : null;
+
+    return {
+      ...encoded,
+      source,
+      cropped: cropRect !== null,
+      cropRect,
+      sourceSize: frameSize,
+      focus,
+      focused,
+    };
   };
 
   // Opt-in native still. Only usable when it frames the same scene as the preview, and never a
