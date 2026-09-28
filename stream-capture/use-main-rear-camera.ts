@@ -21,7 +21,8 @@ export type CameraState =
   | { status: "ready"; stream: MediaStream; camera: CameraCandidate; allCameras: ScoredCandidate[] }
   // `reason` is the DOMException name where the browser gave one — NotAllowedError (refused),
   // NotReadableError (another app holds the camera), OverconstrainedError (stale device id) — so a
-  // parent can tell a permission problem from a hardware one without parsing the message.
+  // parent can tell a permission problem from a hardware one without parsing the message. Two are
+  // ours: "interrupted" (a live track ended) and "playback_blocked" (the <video> refused to play).
   | { status: "error"; message: string; reason: string };
 
 export type UseMainRearCameraOptions = {
@@ -34,6 +35,10 @@ export type UseMainRearCamera = {
   // Structural, so it satisfies the <video ref> prop on both React 18 and 19 typings.
   videoRef: { current: HTMLVideoElement | null };
   state: CameraState;
+  // True once the <video> is rendering frames — later than `state` turning ready, which only means
+  // the stream is open. Reveal the preview on this: in the gap between the two, the element shows
+  // its poster, and Android WebView's default poster is a grey play button.
+  playing: boolean;
   retry: () => void;
   switchTo: (camera: CameraCandidate) => void;
 };
@@ -46,6 +51,7 @@ export const useMainRearCamera = (options: UseMainRearCameraOptions = {}): UseMa
   const onReportRef = useRef(onReport);
   onReportRef.current = onReport;
   const [state, setState] = useState<CameraState>({ status: "loading" });
+  const [playing, setPlaying] = useState(false);
 
   const releaseStream = useCallback(() => {
     if (streamRef.current) stopStream(streamRef.current);
@@ -105,18 +111,34 @@ export const useMainRearCamera = (options: UseMainRearCameraOptions = {}): UseMa
     };
   }, [run, releaseStream]);
 
-  // Attach the stream to whichever <video> is mounted.
+  // Attach the stream to whichever <video> is mounted, and report when it is actually playing.
   useEffect(() => {
     const video = videoRef.current;
     if (!video || state.status !== "ready") return;
+    let attached = true;
+    const onPlaying = () => setPlaying(true);
+    video.addEventListener("playing", onPlaying);
     video.srcObject = state.stream;
-    void video.play().catch(() => {
-      // Autoplay blocked; muted + playsInline normally prevents this.
+    void video.play().catch((error: unknown) => {
+      // An AbortError is this effect's own cleanup detaching the stream mid-play; only a refusal
+      // matters. muted + playsInline normally prevents one, but a WebView whose host app requires a
+      // gesture for media playback may still refuse — and since the preview is only revealed once
+      // it plays, staying silent would leave the user looking at an empty placeholder.
+      if (!attached || (error as { name?: unknown } | null)?.name !== "NotAllowedError") return;
+      releaseStream();
+      setState({
+        status: "error",
+        message: "The camera preview couldn't start. Please try again.",
+        reason: "playback_blocked",
+      });
     });
     return () => {
+      attached = false;
+      video.removeEventListener("playing", onPlaying);
       video.srcObject = null;
+      setPlaying(false);
     };
-  }, [state]);
+  }, [state, releaseStream]);
 
   const retry = useCallback(() => {
     void run(() =>
@@ -141,5 +163,5 @@ export const useMainRearCamera = (options: UseMainRearCameraOptions = {}): UseMa
     [run, state],
   );
 
-  return { videoRef, state, retry, switchTo };
+  return { videoRef, state, playing, retry, switchTo };
 };
