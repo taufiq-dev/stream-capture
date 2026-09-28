@@ -43,6 +43,10 @@ const DEFAULT_CROP_MARGIN = 0.08;
 // Prefix for the element ids and test ids the sheet renders. Neutral here; an app that already has
 // automation or analytics bound to its own names passes them in via idPrefix.
 const DEFAULT_ID_PREFIX = "stream_capture";
+// A <video> without a poster attribute shows the browser's own until it plays, and Android WebView's
+// is a grey play button (WebChromeClient.getDefaultVideoPoster, unless the host app overrides it).
+// A 1×1 transparent GIF makes the poster nothing, whichever app the sheet is embedded in.
+const TRANSPARENT_POSTER = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 
 const newSessionId = (): string =>
   globalThis.crypto?.randomUUID?.() ??
@@ -113,7 +117,7 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
     onCameraReportRef.current?.(report);
   }, []);
 
-  const { videoRef, state, retry, switchTo } = useMainRearCamera({ onReport: handleReport });
+  const { videoRef, state, playing, retry, switchTo } = useMainRearCamera({ onReport: handleReport });
 
   const [isCapturing, setIsCapturing] = useState(false); // tap acknowledged: controls hidden
   const [isClosing, setIsClosing] = useState(false); // slide-down running
@@ -123,7 +127,9 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
     null,
   );
 
-  const isReady = state.status === "ready";
+  // An open stream is not yet a preview: until the first frame plays, the <video> has only its
+  // poster to show. Fade in, and allow capture, once it is actually playing.
+  const isReady = state.status === "ready" && playing;
 
   phaseRef.current = isCapturing
     ? "capturing"
@@ -285,7 +291,7 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
   const handleCapture = async () => {
     const video = videoRef.current;
     const guide = guideRef.current;
-    if (isCapturing || state.status !== "ready" || !video || !guide) return;
+    if (isCapturing || state.status !== "ready" || !playing || !video || !guide) return;
 
     emit({ type: "capture_clicked" });
     onClickCapture?.();
@@ -373,7 +379,15 @@ const StreamCapture: React.FC<StreamCaptureProps> = ({
       style={{ "--sc-guide-ratio": guideAspectRatio } as React.CSSProperties}
     >
       <CameraPlaceholder data-ready={isReady} />
-      <CameraVideo ref={videoRef} className="camera" autoPlay playsInline muted data-ready={isReady} />
+      <CameraVideo
+        ref={videoRef}
+        className="camera"
+        autoPlay
+        playsInline
+        muted
+        poster={TRANSPARENT_POSTER}
+        data-ready={isReady}
+      />
 
       {capturedImage && (
         <CapturedImage

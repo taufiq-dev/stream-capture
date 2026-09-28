@@ -36,7 +36,8 @@ export type StreamCaptureEventPayload =
   | {
       type: "camera_failed";
       /** The DOMException name where there is one — NotAllowedError, NotReadableError,
-       *  OverconstrainedError — or "interrupted" when a live track ended under us. The split
+       *  OverconstrainedError — or "interrupted" when a live track ended under us, or
+       *  "playback_blocked" when the camera opened but the <video> refused to play it. The split
        *  between permission refused and camera busy is the one worth charting. */
       reason: string;
       /** The message shown to the user, already localised by describeCameraError. */
