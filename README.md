@@ -49,6 +49,10 @@ Nothing is stored or transmitted by the demo: a captured photo lives in the page
 tab closes. A camera-permission prompt on a public URL deserves that said plainly, so the page says
 it too.
 
+The deployment also serves two static explainers from `stream-capture-demo/public/docs/`, copied into
+`dist/` as-is: `/docs/manual/`, the engineering description, and `/docs/briefing/`, a diagram-led
+version for non-engineers. Both are written in ASD-STE100 Simplified Technical English.
+
 ## How it works
 
 **Choosing the camera** (`camera-selection.ts`). `facingMode: "environment"` only promises *a* rear

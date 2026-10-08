@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="How the stream-capture component selects the camera, takes the photo and reports events, in ASD-STE100 Simplified Technical English.">
+<title>Stream Capture Description and Operation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+<style>
+body { margin: 0; }
+[hidden] { display: none !important; }
+/* Layout: a maintenance-manual data module. Identification block on top, numbered paragraphs,
+   boxed CAUTION/NOTE callouts, a sticky contents rail on wide screens. */
+:root {
+  --paper: #f3f5f7;
+  --sheet: #ffffff;
+  --ink: #16202a;
+  --muted: #586572;
+  --rule: #d3dae1;
+  --accent: #0a6680;
+  --accent-soft: #e2f0f4;
+  --caution: #9a5b00;
+  --caution-bg: #fff3df;
+  --code-bg: #e8edf1;
+  --overflow: #c9d2da;
+  --crop: #b4561a;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1317; --sheet: #151c22; --ink: #e2e8ed; --muted: #94a2ae; --rule: #2a353e;
+    --accent: #62c2dc; --accent-soft: #15303a; --caution: #f0b35b; --caution-bg: #2a2214;
+    --code-bg: #1f2a32; --overflow: #2c3842; --crop: #f08a4b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e1317; --sheet: #151c22; --ink: #e2e8ed; --muted: #94a2ae; --rule: #2a353e;
+  --accent: #62c2dc; --accent-soft: #15303a; --caution: #f0b35b; --caution-bg: #2a2214;
+  --code-bg: #1f2a32; --overflow: #2c3842; --crop: #f08a4b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 16px/1.6 var(--f-body);
+  padding-inline: 16px;
+  padding-block: 32px 64px;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 40px; }
+@media (min-width: 980px) { .wrap { grid-template-columns: 210px minmax(0, 1fr); } }
+
+/* Contents rail */
+nav.toc { font: 500 13px/1.4 var(--f-body); min-width: 0; }
+nav.toc .rail { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); display: grid; gap: 14px; }
+nav.toc h2 { font: 600 11px/1 var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0; }
+nav.toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+@media (max-width: 979px) { nav.toc ol { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); } }
+nav.toc a { color: var(--ink); text-decoration: none; display: flex; gap: 8px; padding: 3px 0; }
+nav.toc a span { font-family: var(--f-mono); color: var(--muted); min-width: 2ch; }
+nav.toc a:hover { color: var(--accent); }
+
+/* Sentence-length switch */
+.ste-switch { display: flex; align-items: center; gap: 10px; cursor: pointer; font: 500 13px/1.3 var(--f-body); color: var(--ink); background: none; border: 1px solid var(--rule); padding: 8px 10px; text-align: left; }
+.ste-switch .knob { width: 30px; height: 16px; border-radius: 8px; background: var(--rule); position: relative; flex: none; transition: background .15s; }
+.ste-switch .knob::after { content: ""; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--sheet); transition: transform .15s; }
+.ste-switch[aria-pressed="true"] .knob { background: var(--accent); }
+.ste-switch[aria-pressed="true"] .knob::after { transform: translateX(14px); }
+.ste-switch:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ste-stats { font: 400 12px/1.4 var(--f-mono); color: var(--muted); }
+
+main { min-width: 0; background: var(--sheet); border: 1px solid var(--rule); padding: clamp(20px, 4vw, 48px); }
+
+/* Identification block */
+header.dm { display: grid; gap: 18px; padding-bottom: 28px; border-bottom: 2px solid var(--ink); }
+.eyebrow { font: 600 12px/1 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(34px, 6vw, 52px)/1.02 var(--f-display); letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+.lede { font-size: 18px; max-width: 62ch; margin: 0; color: var(--ink); }
+dl.ident { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0; margin: 0; border: 1px solid var(--rule); }
+dl.ident div { padding: 10px 12px; border-right: 1px solid var(--rule); border-bottom: 1px solid var(--rule); margin: -1px 0 0 -1px; min-width: 0; }
+dl.ident dt { font: 600 10.5px/1.2 var(--f-body); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+dl.ident dd { margin: 0; font: 500 14px/1.4 var(--f-mono); overflow-wrap: anywhere; }
+
+/* Rules banner */
+.rules { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; margin-top: 28px; }
+.rule { border: 2px solid var(--ink); padding: 16px 18px; display: grid; gap: 6px; align-content: start; }
+.rule b { font: 600 11px/1 var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.rule p { margin: 0; }
+
+/* Sections */
+section { padding-top: 40px; display: grid; gap: 14px; }
+section > * { margin: 0; }
+h2 { font: 700 28px/1.15 var(--f-display); margin: 0; display: flex; gap: 14px; align-items: baseline; text-wrap: balance; scroll-margin-top: 24px; }
+h2 .n, h3 .n { font: 500 .62em/1 var(--f-mono); color: var(--accent); }
+h3 { font: 600 19px/1.25 var(--f-display); margin: 14px 0 0; display: flex; gap: 10px; align-items: baseline; text-wrap: balance; }
+p, li { max-width: 68ch; }
+code { font: 400 .88em/1 var(--f-mono); background: var(--code-bg); padding: .12em .32em; border-radius: 2px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+
+ol.seq, ol.proc { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 10px; }
+ol.seq > li, ol.proc > li { counter-increment: s; display: grid; grid-template-columns: 2.4em minmax(0, 1fr); align-items: baseline; }
+ol.seq > li::before, ol.proc > li::before { content: counter(s) "."; font: 500 14px/1 var(--f-mono); color: var(--accent); }
+ol.proc > li { padding: 10px 0; border-top: 1px solid var(--rule); }
+ol.proc > li:last-child { border-bottom: 1px solid var(--rule); }
+ol.proc .goto { font: 500 12px/1 var(--f-mono); color: var(--accent); background: var(--accent-soft); padding: 3px 6px; margin-left: 4px; white-space: nowrap; }
+ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
+
+/* Tables */
+.tbl { overflow-x: auto; border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; line-height: 1.45; }
+th { font: 600 11px/1.2 var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; background: var(--paper); padding: 9px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 9px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.k { font-family: var(--f-mono); font-size: 13.5px; white-space: nowrap; }
+tr.win td { background: var(--accent-soft); }
+tr.out td { color: var(--muted); }
+.tag { font: 600 10px/1 var(--f-body); letter-spacing: .1em; text-transform: uppercase; padding: 3px 6px; border: 1px solid currentColor; color: var(--accent); white-space: nowrap; }
+.tag.term { color: var(--crop); }
+.caption { font-size: 13px; color: var(--muted); }
+
+/* Callouts: manual-style boxed CAUTION and NOTE */
+.callout { border: 1.5px solid var(--caution); background: var(--caution-bg); padding: 12px 16px 14px; display: grid; gap: 6px; max-width: 72ch; }
+.callout > b { font: 700 12px/1 var(--f-display); letter-spacing: .18em; color: var(--caution); }
+.callout p { margin: 0; }
+.callout.note { border-color: var(--rule); background: var(--paper); }
+.callout.note > b { color: var(--muted); }
+.cautions { display: grid; gap: 12px; }
+
+/* Formula */
+pre.formula { margin: 0; font: 400 13.5px/1.7 var(--f-mono); background: var(--code-bg); padding: 14px 16px; overflow-x: auto; }
+
+/* Crop diagram */
+.figure { display: flex; flex-wrap: wrap; gap: 24px 32px; align-items: center; padding: 20px; border: 1px solid var(--rule); background: var(--paper); }
+.figure svg { width: 100%; max-width: 230px; height: auto; flex: none; }
+.figure .legend { flex: 1 1 260px; min-width: 0; display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; font-size: 14.5px; }
+.legend li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; }
+.sw { width: 22px; height: 14px; margin-top: 4px; }
+.sw.frame { background: var(--overflow); }
+.sw.screen { background: var(--sheet); border: 1px dashed var(--muted); }
+.sw.box { border: 2.5px solid var(--accent); }
+.sw.crop { border: 2px dashed var(--crop); }
+.legend .dim { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 13px; color: var(--muted); display: block; }
+svg .frame { fill: var(--overflow); }
+svg .screen { fill: var(--sheet); stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+svg .box { fill: none; stroke: var(--accent); stroke-width: 2.5; }
+svg .crop { fill: none; stroke: var(--crop); stroke-width: 1.6; stroke-dasharray: 5 3; }
+svg text { fill: var(--muted); font: 500 9px var(--f-mono); }
+
+.bars { display: grid; gap: 10px; }
+.bar { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; font-size: 14px; }
+.bar .track { height: 14px; background: var(--code-bg); }
+.bar .fill { height: 100%; background: var(--muted); }
+.bar.good .fill { background: var(--accent); }
+.bar .lbl { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.bar .lbl span:last-child { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+footer { margin-top: 48px; padding-top: 18px; border-top: 2px solid var(--ink); font-size: 13px; color: var(--muted); display: grid; gap: 6px; }
+footer p { margin: 0; }
+
+/* Sentence-length marks */
+.wc { display: none; font: 500 10px/1 var(--f-mono); vertical-align: super; margin-left: 2px; padding: 1px 3px; color: var(--muted); background: var(--code-bg); border-radius: 2px; }
+.show-wc .wc { display: inline; }
+.show-wc .wc.over { color: var(--sheet); background: var(--caution); }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <div class="rail">
+      <h2>Contents</h2>
+      <ol>
+        <li><a href="#general"><span>1</span>General</a></li>
+        <li><a href="#parts"><span>2</span>Parts</a></li>
+        <li><a href="#sequence"><span>3</span>Sequence of operation</a></li>
+        <li><a href="#selection"><span>4</span>Camera selection</a></li>
+        <li><a href="#preview"><span>5</span>Preview</a></li>
+        <li><a href="#capture"><span>6</span>Capture</a></li>
+        <li><a href="#files"><span>7</span>Files for the backend</a></li>
+        <li><a href="#geometry"><span>8</span>Sheet geometry</a></li>
+        <li><a href="#events"><span>9</span>Events</a></li>
+        <li><a href="#errors"><span>10</span>Errors</a></li>
+        <li><a href="#changes"><span>11</span>Rules for changes</a></li>
+      </ol>
+      <button class="ste-switch" id="wc-toggle" type="button" aria-pressed="false">
+        <span class="knob" aria-hidden="true"></span>
+        <span>Show sentence length</span>
+      </button>
+      <div class="ste-stats" id="wc-stats"></div>
+    </div>
+  </nav>
+
+  <main id="doc">
+    <header class="dm">
+      <div class="eyebrow">Description and operation</div>
+      <h1>stream-capture</h1>
+      <p class="lede">This document tells you how the stream-capture component operates. The text uses the rules of ASD-STE100 Simplified Technical English.</p>
+      <dl class="ident">
+        <div><dt>Subject</dt><dd>React camera sheet for an ID card photo</dd></div>
+        <div><dt>Component</dt><dd>stream-capture/</dd></div>
+        <div><dt>Test application</dt><dd>stream-capture-demo/</dd></div>
+        <div><dt>Revision</dt><dd>main @ dcf9311</dd></div>
+        <div><dt>Issue date</dt><dd>2026-10-08</dd></div>
+      </dl>
+    </header>
+
+    <div class="rules">
+      <div class="rule"><b>Rule 1 · Camera</b><p>Select the camera by its capabilities. Do not select a camera by its position in the <code>enumerateDevices()</code> list.</p></div>
+      <div class="rule"><b>Rule 2 · Resolution</b><p>Cut the crop from the source frame in source pixels. Do not cut the crop from a canvas that has the size of the screen.</p></div>
+    </div>
+
+    <section id="general">
+      <h2><span class="n">1</span>General</h2>
+      <h3><span class="n">1.1</span>Purpose</h3>
+      <p>The stream-capture component is a full-screen camera sheet for React. It takes a photo of an identity card in a mobile browser. It gives the photo to the host application as a JPEG data URL.</p>
+      <p>A simple camera sheet has two problems on modern phones. This component solves the two problems.</p>
+      <h3><span class="n">1.2</span>Problem 1: the incorrect camera</h3>
+      <p>The constraint <code>facingMode: "environment"</code> gives a rear camera. It does not always give the main rear camera. On a phone with many lenses, the browser can open the telephoto lens or the macro lens. Then the preview is dark and narrow, and it is difficult to focus the lens on a card.</p>
+      <h3><span class="n">1.3</span>Problem 2: low resolution</h3>
+      <p>A simple sheet draws the preview on a canvas that has the size of the screen. As a result, a guide box that is 358 CSS px wide gives a crop that is 358 px wide. This resolution is not sufficient for optical character recognition (OCR).</p>
+      <p>This component cuts the crop from the preview frame at full resolution. The crop is then approximately 1000 to 2000 px wide.</p>
+    </section>
+
+    <section id="parts">
+      <h2><span class="n">2</span>Parts</h2>
+      <p>The component is a plain folder. It has no package file and no build step. The test application supplies <code>react</code>, <code>styled-components</code> and <code>valibot</code>.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>File</th><th>Function</th></tr></thead>
+        <tbody>
+          <tr><td class="k">stream-capture.tsx</td><td>The sheet. It shows the preview, the guide box and the controls. It sends the events and the photo to the host application.</td></tr>
+          <tr><td class="k">use-main-rear-camera.ts</td><td>A React hook. It opens the camera stream, attaches it to the video element and stops it. It also supplies the retry and switch functions.</td></tr>
+          <tr><td class="k">camera-selection.ts</td><td>Finds the main rear camera. It reads, scores and stores the camera data.</td></tr>
+          <tr><td class="k">capture-photo.ts</td><td>Takes the still image. It selects the sharpest frame, cuts the crop and encodes the JPEG.</td></tr>
+          <tr><td class="k">focused-image.tsx</td><td>Shows only the guide box area of the photo. It uses CSS only.</td></tr>
+          <tr><td class="k">capture-button.tsx</td><td>The round shutter button. It is a real button element, and a keyboard can operate it.</td></tr>
+          <tr><td class="k">events.ts</td><td>The types of all the events that the sheet sends.</td></tr>
+          <tr><td class="k">types.ts</td><td>The props of the component and the photo metadata.</td></tr>
+          <tr><td class="k">stream-capture.styles.tsx</td><td>The styles. The guide box geometry is in CSS custom properties.</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="sequence">
+      <h2><span class="n">3</span>Sequence of operation</h2>
+      <p>This is the normal sequence for one session. Each paragraph that follows gives the details of one step.</p>
+      <ol class="seq">
+        <li>The host application shows the sheet. The sheet moves up from the bottom of the screen in 600 ms.</li>
+        <li>The sheet locks the scroll position of the page.</li>
+        <li>The hook selects and opens the main rear camera.</li>
+        <li>The preview starts. The sheet shows the video only after the first frame plays.</li>
+        <li>The user puts the card in the guide box and pushes the shutter button.</li>
+        <li>The component takes the photo. It shows the photo on the same area of the screen.</li>
+        <li>The sheet moves down in 600 ms.</li>
+        <li>The sheet calls <code>uploadImage(dataUrl, meta)</code> and then <code>setStream(false)</code>.</li>
+      </ol>
+      <p>If the user pushes Cancel, the sheet moves down and calls <code>setStream(false)</code>. It does not call <code>uploadImage</code>.</p>
+    </section>
+
+    <section id="selection">
+      <h2><span class="n">4</span>Camera selection</h2>
+      <h3><span class="n">4.1</span>Description</h3>
+      <p>The browser does not give the camera list in a stable sequence. As a result, the position of a camera in the list has no meaning. The component reads the capabilities of each camera and gives each camera a score.</p>
+      <h3><span class="n">4.2</span>Steps of the selection</h3>
+      <p>The function <code>selectMainRearCamera()</code> does these steps:</p>
+      <ol class="proc">
+        <li><span>The component opens the default rear camera with <code>facingMode: "environment"</code>. This step gets the camera permission. It has no time limit, because the user can wait at the permission prompt.</span></li>
+        <li><span>The component gets the list of video inputs with <code>enumerateDevices()</code>. The labels and the capabilities are available only after permission.</span></li>
+        <li><span>The component reads the stored camera from <code>localStorage</code>. If the device ID and the label agree with a camera in the list, it uses that camera. <span class="goto">Go to step 7</span></span></li>
+        <li><span>If there is only one camera, the component uses the default stream. <span class="goto">Stop here</span></span></li>
+        <li><span>The component reads the capabilities of each camera. It uses the sources that do not open a camera first. Refer to table 4-1.</span></li>
+        <li><span>The component gives a score to each camera. It removes the cameras that are not rear cameras. It selects the camera with the highest score.</span></li>
+        <li><span>If the default stream is already the selected camera, the component keeps it. If not, it opens the selected camera. It stores the selection in <code>localStorage</code>.</span></li>
+      </ol>
+      <p class="caption">Table 4-1. Sources of camera capabilities</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Source</th><th>Browser</th><th>Opens a camera</th></tr></thead>
+        <tbody>
+          <tr><td class="k">default-stream</td><td>All</td><td>No. It reads the stream from step 1.</td></tr>
+          <tr><td class="k">device-info</td><td>Chromium. It reads <code>InputDeviceInfo.getCapabilities()</code>.</td><td>No.</td></tr>
+          <tr><td class="k">stream-probe</td><td>Safari and Firefox</td><td>Yes. It opens each camera for a short time. The time limit is 3000 ms for each camera.</td></tr>
+          <tr><td class="k">none</td><td>Browsers without <code>getCapabilities()</code></td><td>No. The score uses the label only.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout note"><b>NOTE</b><p>Most phones cannot open a second camera while the first camera is open. Because of this, the component stops the default stream before a probe. A camera that does not open during the probe is not a candidate.</p></div>
+
+      <h3><span class="n">4.3</span>Score</h3>
+      <p>The component adds and subtracts points as table 4-2 shows. Resolution gives the most points. The 50 MP limit makes sure that a lens penalty can be larger than the resolution points.</p>
+      <p class="caption">Table 4-2. Score of a camera</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Condition</th><th class="num">Points</th></tr></thead>
+        <tbody>
+          <tr><td>Resolution, in megapixels. The maximum is 50 MP.</td><td class="num">+10 for each MP</td></tr>
+          <tr><td>The minimum zoom is more than 1. This is almost always a telephoto lens.</td><td class="num">−400</td></tr>
+          <tr><td>The label contains <code>zoom</code>, <code>tele</code>, <code>wide</code>, <code>ultra</code>, <code>macro</code>, <code>depth</code> or <code>periscope</code>.</td><td class="num">−300 for each word</td></tr>
+          <tr><td>The label is <code>Back Camera</code> (iOS) or contains <code>camera2 0</code> (Android).</td><td class="num">+250</td></tr>
+        </tbody>
+      </table></div>
+      <p class="caption">Table 4-3. Example. In this example, all cameras report 4032 × 3024 px (12.19 MP). The phone and the values are an example only.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Label</th><th>Rear</th><th class="num">Score</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr class="win"><td class="k">Back Camera</td><td>Yes</td><td class="num">371.9</td><td><span class="tag">Selected</span></td></tr>
+          <tr><td class="k">Back Triple Camera</td><td>Yes</td><td class="num">121.9</td><td>Alternative 1</td></tr>
+          <tr><td class="k">Back Telephoto Camera</td><td>Yes</td><td class="num">−178.1</td><td>Alternative 2</td></tr>
+          <tr><td class="k">Back Dual Wide Camera</td><td>Yes</td><td class="num">−178.1</td><td>Alternative 3</td></tr>
+          <tr><td class="k">Back Ultra Wide Camera</td><td>Yes</td><td class="num">−478.1</td><td>Alternative 4</td></tr>
+          <tr class="out"><td class="k">Front Camera</td><td>No</td><td class="num">—</td><td>Removed</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3><span class="n">4.4</span>Rear camera test</h3>
+      <p>If the capabilities give a <code>facingMode</code> value, the component uses that value. If not, it uses the label. A label with <code>back</code>, <code>rear</code> or <code>environment</code> identifies a rear camera.</p>
+      <p>A label with <code>front</code>, <code>user</code> or <code>selfie</code> identifies a front camera. The component identifies a camera with an empty label as a rear camera. This prevents an empty camera list on browsers that do not show labels.</p>
+
+      <h3><span class="n">4.5</span>Stored camera</h3>
+      <p>The component stores the device ID and the label in <code>localStorage</code>, with the key <code>camera-selection/v1</code>. On the next visit, this removes the probe step.</p>
+      <p>The component still reads and scores the camera list. This step is fast, and it opens no camera. As a result, the user can switch back to a better camera.</p>
+      <p>Chromium keeps a device ID until the user clears the site data. Safari changes the device IDs between sessions. On Safari, the stored camera does not agree, and the full selection occurs.</p>
+      <p>If a stored device ID is stale, <code>getUserMedia</code> gives <code>OverconstrainedError</code> or <code>NotFoundError</code>. The component then removes the stored camera and opens <code>facingMode: "environment"</code>.</p>
+      <div class="callout"><b>CAUTION</b><p>Validate all data from <code>localStorage</code> before you use it. Other scripts and earlier versions can write incorrect data. The component validates the stored camera with valibot.</p></div>
+
+      <h3><span class="n">4.6</span>Manual switch</h3>
+      <p>Set <code>enableCameraSwitch</code> to show the switch button. The button shows only when there are two or more rear cameras. Each push opens the next rear camera in the score sequence. The component stores the manual selection.</p>
+    </section>
+
+    <section id="preview">
+      <h2><span class="n">5</span>Preview</h2>
+      <p>The component requests a preview of 3840 × 2160 px as ideal values. An ideal value is not a hard limit. A phone with a 1080p maximum gives 1080p, and the crop is then smaller.</p>
+      <p>The stream can be open before the video plays. During this interval, the video element shows its poster. The Android WebView poster is a grey play symbol.</p>
+      <p>To prevent this, the component sets a transparent GIF of 1 × 1 px as the poster. It shows the video only after the <code>playing</code> event.</p>
+      <p>Some WebView host applications do not allow media playback without a user gesture. If <code>video.play()</code> gives <code>NotAllowedError</code>, the component shows an error message.</p>
+      <p>iOS stops the camera track when the application goes into the background. The component then shows an error. Without this error, the user cannot see the difference between a stopped frame and a live preview.</p>
+    </section>
+
+    <section id="capture">
+      <h2><span class="n">6</span>Capture</h2>
+      <h3><span class="n">6.1</span>Sharpest frame</h3>
+      <p>When the user pushes the shutter button, the component examines 4 frames at intervals of 120 ms. For each frame, it calculates the variance of a Laplacian on a small grey copy.</p>
+      <p>The grey copy is 320 px wide. A high variance shows a sharp frame. The component compares the frames with each other only. It does not use the variance as an absolute limit.</p>
+      <p>The component draws a frame at full resolution only if that frame is the sharpest frame so far. It uses one canvas for this.</p>
+      <p>A 4K canvas uses approximately 30 to 50 MB of memory. With one canvas, the memory stays in the canvas memory limit of mobile Safari.</p>
+
+      <h3><span class="n">6.2</span>From the guide box to source pixels</h3>
+      <p>The guide box is a DOM element. At capture, the component reads the rectangles of the guide box and the video element with <code>getBoundingClientRect()</code>. As a result, the crop is always the area that the user saw.</p>
+      <p>The video element uses <code>object-fit: cover</code>. The browser scales the frame to fill the element, and the overflow is not visible. The component calculates the scale and the overflow, and then converts CSS px to source px.</p>
+<pre class="formula">scale    = max(element width ÷ source width, element height ÷ source height)
+overflow = (source width × scale − element width) ÷ 2
+source x = (box x + overflow) ÷ scale
+source w = box width ÷ scale</pre>
+      <p>Then the component adds a margin of 8% of the box on each side. The backend uses this margin for its own edge detection and perspective correction. The component clamps the crop to the edges of the frame.</p>
+      <p class="caption">Figure 6-1. Example. A portrait stream of 2160 × 3840 px on a screen of 390 × 844 CSS px, with the ID-1 guide box. The drawing is to scale.</p>
+      <div class="figure">
+        <svg viewBox="0 0 256 432" role="img" aria-labelledby="fig61">
+          <title id="fig61">Source frame with the visible screen area, the guide box and the crop with margin</title>
+          <rect class="frame" x="20" y="20" width="216" height="384"/>
+          <rect class="screen" x="39.3" y="20" width="177.4" height="384"/>
+          <rect class="crop" x="33.5" y="68" width="189" height="119.2"/>
+          <rect class="box" x="46.6" y="76.3" width="162.9" height="102.7"/>
+          <text x="20" y="420">2160 px</text>
+          <text x="236" y="420" text-anchor="end">0.2198 CSS px / source px</text>
+        </svg>
+        <ul class="legend">
+          <li><span class="sw frame"></span><span>Source frame. The browser does not show the left and right strips.<span class="dim">2160 × 3840 px · overflow 42.4 CSS px each side</span></span></li>
+          <li><span class="sw screen"></span><span>The area that the screen shows.<span class="dim">390 × 844 CSS px = 1774 × 3840 source px</span></span></li>
+          <li><span class="sw box"></span><span>Guide box.<span class="dim">358 × 226 CSS px = 1629 × 1027 source px</span></span></li>
+          <li><span class="sw crop"></span><span>Crop with the 8% margin. The margin can contain pixels that the screen does not show.<span class="dim">1890 × 1192 source px</span></span></li>
+        </ul>
+      </div>
+      <div class="bars" aria-label="Crop width comparison">
+        <div class="bar"><div class="lbl"><span>Crop from a canvas with the size of the screen</span><span>358 px</span></div><div class="track"><div class="fill" style="width:18.9%"></div></div></div>
+        <div class="bar good"><div class="lbl"><span>Crop from the source frame, with margin</span><span>1890 px</span></div><div class="track"><div class="fill" style="width:100%"></div></div></div>
+      </div>
+      <p>The crop is a 1:1 copy of the source pixels. The component does not resample the crop.</p>
+
+      <h3><span class="n">6.3</span>Encoding under the size limit</h3>
+      <p>The upload limit is 5 MB. The function <code>encodeUnderBudget()</code> does these steps:</p>
+      <ol class="proc">
+        <li><span>If the long edge is more than 3200 px, the component scales the image down to 3200 px.</span></li>
+        <li><span>The component encodes the JPEG at quality 0.95. If the file is larger than 5 MB, it encodes again at 0.92, 0.90, 0.88 and 0.85.</span></li>
+        <li><span>The component does not go below quality 0.85. It decreases the width and the height by 15%. <span class="goto">Go to step 2</span></span></li>
+        <li><span>After 6 attempts, the component stops with an error.</span></li>
+      </ol>
+      <p>The component removes pixels before it decreases the quality. JPEG block artifacts cause more problems for document recognition than a small decrease in resolution.</p>
+
+      <h3><span class="n">6.4</span>After the capture</h3>
+      <p>The component pauses the video. It puts the captured image on the screen at the exact position of the crop. The user can then see that the photo agrees with the guide box.</p>
+      <p>Then the sheet moves down. After 600 ms, the sheet calls <code>uploadImage(dataUrl, meta)</code>.</p>
+    </section>
+
+    <section id="files">
+      <h2><span class="n">7</span>Files for the backend</h2>
+      <p>The host application selects the file that it sends to the backend. Table 7-1 gives the three configurations. They do not give the same result.</p>
+      <p class="caption">Table 7-1. Configurations</p>
+      <div class="tbl"><table>
+        <thead><tr><th>The backend uses</th><th>Props</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>The card and the area around it. This is the default.</td><td class="k">cropMargin = 0.08</td><td>Send <code>dataUrl</code>. Show the photo to the user with <code>&lt;FocusedImage&gt;</code>.</td></tr>
+          <tr><td>The card only</td><td class="k">cropMargin = 0</td><td>One encode and one file. <code>&lt;FocusedImage&gt;</code> shows the full image.</td></tr>
+          <tr><td>Two files</td><td class="k">encodeFocused</td><td><code>meta.focused</code> contains the card only. This adds a second encode after the shutter.</td></tr>
+        </tbody>
+      </table></div>
+      <p>The <code>meta</code> object contains <code>focus</code>, <code>width</code>, <code>height</code> and, if requested, <code>focused</code>. The <code>focus</code> value gives the guide box in the image as fractions from 0 to 1.</p>
+      <p><code>&lt;FocusedImage&gt;</code> makes a frame with the aspect ratio of the box. It scales the image by 1 ÷ focus and moves it, so the box fills the frame.</p>
+      <div class="callout note"><b>NOTE</b><p><code>&lt;FocusedImage&gt;</code> does not make the file smaller. It does not show the margin, but the file has the same number of bytes. Only <code>meta.focused</code> is a smaller file.</p></div>
+      <div class="callout"><b>CAUTION</b><p>Do not crop the first JPEG to make the second file. The component must cut the second file from the full-resolution frame. A crop of a JPEG keeps the block artifacts of the first encode.</p></div>
+    </section>
+
+    <section id="geometry">
+      <h2><span class="n">8</span>Sheet geometry</h2>
+      <p>On mobile Safari, the units <code>vh</code> and <code>dvh</code> do not always agree with the visible screen. Because of this, the component measures the sheet and writes <code>--sc-viewport-width</code> and <code>--sc-viewport-height</code>.</p>
+      <p>On iOS, the layout viewport and the visual viewport can move apart after the permission prompt. A fixed sheet then stays above the screen. The component sets the position and the size of the sheet from <code>window.visualViewport</code>.</p>
+      <p>The component measures again after each resize, scroll and orientation change. After a status change, it measures again on the next frame and after 350 ms. iOS gives the final viewport size late.</p>
+      <p>The sheet also locks the page body at its scroll position. On iOS, a fixed overlay above a scrolled page moves by the offset of the visual viewport. When the sheet closes, the component returns the page to its scroll position.</p>
+      <p>The guide box size comes from one ratio, <code>--sc-guide-ratio</code>:</p>
+<pre class="formula">width  = min(viewport width − 32 px, 0.5 × viewport height × ratio)
+height = width ÷ ratio
+top    = (viewport height − height) × 0.2</pre>
+      <p class="caption">Table 8-1. Guide box shapes (<code>GUIDE_ASPECT</code>)</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Name</th><th class="num">Ratio</th><th>Shape</th></tr></thead>
+        <tbody>
+          <tr><td class="k">DESIGN</td><td class="num">1.650</td><td>The box of the original design, 330 × 200. This is the default.</td></tr>
+          <tr><td class="k">ID_CARD</td><td class="num">1.586</td><td>ISO/IEC 7810 ID-1, 85.6 × 53.98 mm. National ID cards, driving licences and bank cards use this size.</td></tr>
+          <tr><td class="k">PASSPORT</td><td class="num">1.420</td><td>ISO/IEC 7810 ID-3, 125 × 88 mm. This is the passport data page.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout note"><b>NOTE</b><p>All custom properties of the component start with <code>--sc-</code>. The host page can have custom properties with the same names.</p></div>
+    </section>
+
+    <section id="events">
+      <h2><span class="n">9</span>Events</h2>
+      <p>The sheet sends all events through one function, <code>emitEvent</code>. Each event has a <code>sessionId</code> and an <code>elapsedMs</code> value. The <code>sessionId</code> changes each time the sheet opens.</p>
+      <p>The <code>elapsedMs</code> value is the time since the sheet opened. On <code>camera_ready</code>, this value is the time to the first preview.</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Event</th><th>The sheet sends it when</th><th>Data</th></tr></thead>
+        <tbody>
+          <tr><td class="k">opened</td><td>The sheet opens.</td><td>Configuration</td></tr>
+          <tr><td class="k">camera_ready</td><td>The preview is live. This also occurs after a switch.</td><td>Camera, selection report</td></tr>
+          <tr><td class="k">camera_failed</td><td>The camera does not open or stops.</td><td>Reason, message</td></tr>
+          <tr><td class="k">retry_clicked</td><td>The user pushes Try again.</td><td>—</td></tr>
+          <tr><td class="k">camera_switched</td><td>The user pushes the switch button.</td><td>From, to, label</td></tr>
+          <tr><td class="k">capture_clicked</td><td>The user pushes the shutter button.</td><td>—</td></tr>
+          <tr><td class="k">capture_succeeded</td><td>The JPEG is ready.</td><td>Duration, image size, bytes, quality</td></tr>
+          <tr><td class="k">capture_failed</td><td>The capture has an error.</td><td>Message</td></tr>
+          <tr><td class="k">cancel_clicked</td><td>The user pushes Cancel.</td><td>Preview or error</td></tr>
+          <tr><td class="k">closed <span class="tag term">Terminal</span></td><td>The slide down is complete.</td><td>Captured or cancelled</td></tr>
+          <tr><td class="k">abandoned <span class="tag term">Terminal</span></td><td>The host removes the sheet before it closes.</td><td>Phase at removal</td></tr>
+        </tbody>
+      </table></div>
+      <p>Each session ends with one <code>closed</code> event or one <code>abandoned</code> event. It never sends the two. As a result, the funnel numbers agree.</p>
+      <p>The component catches all errors from the event handler. An error in analytics code cannot stop a capture.</p>
+      <div class="callout"><b>CAUTION</b><p>Do not send <code>camera.label</code> to a third party without a privacy review. The label can help to identify the device.</p></div>
+    </section>
+
+    <section id="errors">
+      <h2><span class="n">10</span>Errors</h2>
+      <p>Table 10-1 gives the error reasons. The messages are quotations from the code.</p>
+      <p class="caption">Table 10-1. Camera errors</p>
+      <div class="tbl"><table>
+        <thead><tr><th>Reason</th><th>Cause</th><th>Message to the user</th></tr></thead>
+        <tbody>
+          <tr><td class="k">NotAllowedError</td><td>The user did not give camera permission.</td><td>“Camera permission was denied. Please allow camera access and try again.”</td></tr>
+          <tr><td class="k">NotFoundError</td><td>There is no applicable camera.</td><td>“No suitable camera was found on this device.”</td></tr>
+          <tr><td class="k">NotReadableError</td><td>Another application uses the camera.</td><td>“The camera is in use by another app. Close it and try again.”</td></tr>
+          <tr><td class="k">interrupted</td><td>The camera track stopped. On iOS, this occurs in the background.</td><td>“The camera was interrupted. Please try again.”</td></tr>
+          <tr><td class="k">playback_blocked</td><td>The video element did not play the stream.</td><td>“The camera preview couldn't start. Please try again.”</td></tr>
+          <tr><td class="k">Other</td><td>All other errors.</td><td>“Couldn't start the camera. Please try again.”</td></tr>
+        </tbody>
+      </table></div>
+      <p>The Try again button does the full selection again. It does not use the stored camera.</p>
+    </section>
+
+    <section id="changes">
+      <h2><span class="n">11</span>Rules for changes</h2>
+      <p>Obey these cautions when you change the component.</p>
+      <div class="cautions">
+        <div class="callout"><b>CAUTION</b><p>Do not select a camera by its index in the <code>enumerateDevices()</code> list. The sequence is not stable, and the result can be a telephoto lens.</p></div>
+        <div class="callout"><b>CAUTION</b><p>Do not cut the crop from a canvas with the size of the screen. The resolution then becomes too low for OCR.</p></div>
+        <div class="callout"><b>CAUTION</b><p>Do not use <code>takePhoto()</code> with a guide box crop. On Android, it changes the field of view, and the photo does not agree with the preview.</p></div>
+        <div class="callout"><b>CAUTION</b><p>Do not use <code>vh</code> or <code>dvh</code> for the sheet geometry. Use the measured <code>--sc-viewport-*</code> values.</p></div>
+        <div class="callout"><b>CAUTION</b><p>Do not write element IDs or test IDs as fixed text. Make them from <code>idPrefix</code>. Host applications use these names for automation.</p></div>
+        <div class="callout"><b>CAUTION</b><p>Keep <code>SLIDE_MS</code> (600) equal to the slide duration in <code>stream-capture.styles.tsx</code>. If the two values are different, the upload starts before or after the slide ends.</p></div>
+        <div class="callout"><b>CAUTION</b><p>Do not add a second terminal event. Each session must end with one <code>closed</code> event or one <code>abandoned</code> event.</p></div>
+        <div class="callout"><b>CAUTION</b><p>Do not add <code>&lt;StrictMode&gt;</code> to the test application. The double mount opens the camera two times.</p></div>
+      </div>
+      <h3><span class="n">11.1</span>Procedure to examine a change</h3>
+      <ol class="proc">
+        <li><span>Go to the <code>stream-capture-demo/</code> folder.</span></li>
+        <li><span>Run <code>pnpm typecheck</code>. This is the only automatic check. The repository has no tests and no linter.</span></li>
+        <li><span>Run <code>pnpm dev</code>. Open the HTTPS address on a phone in the same network.</span></li>
+        <li><span>Take a photo with the real phone camera. A desktop browser cannot test the camera selection.</span></li>
+        <li><span>Record which steps you did on a phone and which steps you did not do.</span></li>
+      </ol>
+      <div class="callout note"><b>NOTE</b><p><code>getUserMedia</code> operates only in a secure context. <code>http://localhost</code> is a secure context. A LAN IP address without HTTPS is not a secure context.</p></div>
+      <div class="callout note"><b>NOTE</b><p>The test application does not send or store the photo. The photo stays in the memory of the page until you close the tab. The page tells the user this, because it requests camera permission on a public URL.</p></div>
+    </section>
+
+    <footer>
+      <p>Source: stream-capture README.md, CLAUDE.md and the source files at commit dcf9311.</p>
+      <p>Technical names and technical verbs (for example encode, crop and scale) follow the STE rules for technical words. This text was not compared with the licensed STE dictionary.</p>
+      <p>For a plain-language version with diagrams, refer to the <a href="/docs/briefing/">Stream Capture briefing</a>. To try the component, open the <a href="/">demo</a>.</p>
+    </footer>
+  </main>
+</div>
+
+<script>
+(function () {
+  var doc = document.getElementById("doc");
+  var toggle = document.getElementById("wc-toggle");
+  var stats = document.getElementById("wc-stats");
+  // STE limits: 20 words in a procedural sentence, 25 in a descriptive sentence.
+  var targets = doc.querySelectorAll(".lede, section p:not(.caption), .rule p, ol.seq > li, ol.proc > li > span, td:not(.k):not(.num)");
+  var total = 0, over = 0, longest = 0;
+  targets.forEach(function (el) {
+    if (el.closest(".legend") || el.closest(".bar")) return;
+    var limit = el.closest("ol.proc") ? 20 : 25;
+    var html = el.innerHTML.trim();
+    var goto = "";
+    var g = el.querySelector(":scope > .goto");
+    if (g) { goto = g.outerHTML; html = html.replace(goto, "").trim(); }
+    var parts = html.split(/(?<=[.?!”])\s+(?=[A-Za-z<“])/);
+    el.innerHTML = parts.map(function (part) {
+      var tmp = document.createElement("span");
+      tmp.innerHTML = part;
+      var words = tmp.textContent.trim().split(/\s+/).filter(function (w) { return /[A-Za-z0-9]/.test(w); }).length;
+      if (!words) return part;
+      total += 1;
+      if (words > longest) longest = words;
+      var isOver = words > limit;
+      if (isOver) over += 1;
+      return part + '<span class="wc' + (isOver ? " over" : "") + '" title="' + words + " words (limit " + limit + ')">' + words + "</span>";
+    }).join(" ") + (goto ? " " + goto : "");
+  });
+  stats.textContent = total + " sentences · longest " + longest + " words · " + over + " over the limit";
+
+  function set(on) {
+    toggle.setAttribute("aria-pressed", on ? "true" : "false");
+    doc.classList.toggle("show-wc", on);
+    try { localStorage.setItem("docs/ste-wc", on ? "1" : "0"); } catch (e) {}
+  }
+  var saved = false;
+  try { saved = localStorage.getItem("docs/ste-wc") === "1"; } catch (e) {}
+  set(saved);
+  toggle.addEventListener("click", function () { set(toggle.getAttribute("aria-pressed") !== "true"); });
+})();
+</script>
+</body>
+</html>

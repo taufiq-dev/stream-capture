@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A plain-language, diagram-led explanation of how Stream Capture picks the right lens, keeps a sharp ID photo and reports each session.">
+<title>Stream Capture Briefing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body { margin: 0; }
+[hidden] { display: none !important; }
+/* Layout: one reading column, each section = a short claim + one diagram that proves it.
+   Same family as the engineering manual (Plex, petrol accent), more air, fewer words. */
+:root {
+  --paper: #f3f5f7;
+  --sheet: #ffffff;
+  --ink: #16202a;
+  --muted: #5a6773;
+  --rule: #d6dde3;
+  --accent: #0a6680;
+  --accent-soft: #e0eff4;
+  --bad: #b3261e;
+  --bad-soft: #fbe6e4;
+  --crop: #b4561a;
+  --cam: #1d272e;
+  --cam-ink: #e6edf1;
+  --card: #cfe5ec;
+  --card-ink: #557784;
+  --host: #e9edf0;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1317; --sheet: #151c22; --ink: #e2e8ed; --muted: #97a4b0; --rule: #2b363f;
+    --accent: #62c2dc; --accent-soft: #163039; --bad: #ff8a80; --bad-soft: #3a1d1b; --crop: #f08a4b;
+    --cam: #070b0e; --cam-ink: #dbe4ea; --card: #2b4b57; --card-ink: #8fb4c1; --host: #222c34;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e1317; --sheet: #151c22; --ink: #e2e8ed; --muted: #97a4b0; --rule: #2b363f;
+  --accent: #62c2dc; --accent-soft: #163039; --bad: #ff8a80; --bad-soft: #3a1d1b; --crop: #f08a4b;
+  --cam: #070b0e; --cam-ink: #dbe4ea; --card: #2b4b57; --card-ink: #8fb4c1; --host: #222c34;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 400 17px/1.6 var(--f-body); padding-inline: 16px; padding-block: 40px 72px; -webkit-font-smoothing: antialiased; }
+.page { max-width: 940px; margin: 0 auto; display: grid; gap: 64px; }
+
+header { display: grid; gap: 18px; }
+.eyebrow { font: 600 12px/1 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(40px, 8vw, 68px)/1 var(--f-display); margin: 0; letter-spacing: -.01em; }
+.lede { font-size: clamp(19px, 2.4vw, 22px); line-height: 1.5; max-width: 40ch; margin: 0; text-wrap: pretty; }
+.outcomes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0; border-top: 2px solid var(--ink); margin-top: 12px; }
+.outcomes div { padding: 16px 18px 4px 0; display: grid; gap: 4px; align-content: start; }
+.outcomes b { font: 700 19px/1.2 var(--f-display); }
+.outcomes span { color: var(--muted); font-size: 15px; line-height: 1.45; }
+
+section { display: grid; gap: 18px; }
+section > * { margin: 0; }
+.kicker { font: 500 12px/1 var(--f-mono); color: var(--accent); letter-spacing: .04em; }
+h2 { font: 700 clamp(26px, 4vw, 34px)/1.12 var(--f-display); text-wrap: balance; max-width: 26ch; }
+p { max-width: 64ch; }
+.muted { color: var(--muted); }
+
+figure { margin: 0; background: var(--sheet); border: 1px solid var(--rule); padding: clamp(14px, 3vw, 28px); display: grid; gap: 14px; }
+figcaption { font-size: 14.5px; line-height: 1.5; color: var(--muted); max-width: 70ch; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.scroll { overflow-x: auto; }
+.scroll svg { min-width: 640px; }
+svg { display: block; width: 100%; height: auto; color: var(--ink); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.pair figure { gap: 10px; }
+.pair h3 { margin: 0; font: 700 17px/1.2 var(--f-display); display: flex; gap: 8px; align-items: center; }
+.pill { font: 600 10.5px/1 var(--f-body); letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border: 1px solid currentColor; }
+.pill.bad { color: var(--bad); }
+.pill.good { color: var(--accent); }
+
+/* SVG paint, all from tokens */
+.t { fill: currentColor; font-family: var(--f-body); font-size: 14px; }
+.t.s { font-size: 12.5px; fill: var(--muted); }
+.t.b { font-weight: 600; }
+.t.h { font-family: var(--f-display); font-weight: 700; font-size: 15px; }
+.t.mono { font-family: var(--f-mono); font-size: 13px; }
+.t.acc { fill: var(--accent); }
+.t.badt { fill: var(--bad); }
+.t.cam { fill: var(--cam-ink); }
+.t.mid { text-anchor: middle; }
+.t.end { text-anchor: end; }
+.phone { fill: var(--sheet); stroke: currentColor; stroke-width: 1.5; }
+.cam { fill: var(--cam); }
+.host { fill: var(--host); }
+.guide { fill: none; stroke: var(--cam-ink); stroke-width: 1.5; }
+.guide.dash { stroke-dasharray: 4 3; }
+.card { fill: var(--card); }
+.card-ink { fill: var(--card-ink); }
+.shutter { fill: none; stroke: var(--cam-ink); stroke-width: 2; }
+.shutter.on { fill: var(--accent); stroke: var(--accent); }
+.ring { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.ln { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.ln.acc { stroke: var(--accent); stroke-width: 2.2; }
+.ln.badl { stroke: var(--bad); stroke-width: 2.2; }
+.ln.dash { stroke-dasharray: 5 4; }
+.ln.mut { stroke: var(--muted); }
+.ln.camk { stroke: var(--cam-ink); stroke-width: 2; }
+.ah { fill: currentColor; }
+.ah.acc { fill: var(--accent); }
+.ah.bad { fill: var(--bad); }
+.ah.mut { fill: var(--muted); }
+.ah.camk { fill: var(--cam-ink); }
+.node { fill: var(--sheet); stroke: currentColor; stroke-width: 1.5; }
+.node.acc { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.node.bad { fill: var(--bad-soft); stroke: var(--bad); }
+.node.end { fill: var(--sheet); stroke: var(--accent); stroke-width: 3; }
+.node.soft { fill: var(--paper); stroke: var(--muted); stroke-dasharray: 5 4; }
+.zone { fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 7 5; }
+.bar { fill: var(--muted); opacity: .55; }
+.bar.win { fill: var(--accent); opacity: 1; }
+.bar.neg { fill: var(--bad); opacity: .7; }
+.axis { stroke: currentColor; stroke-width: 1.5; }
+.grid { stroke: var(--rule); stroke-width: 1; }
+.cropr { fill: none; stroke: var(--crop); stroke-width: 2.5; stroke-dasharray: 9 6; }
+.scene { fill: var(--host); }
+.boxr { fill: none; stroke: var(--accent); stroke-width: 3; }
+.t.crop { fill: var(--crop); }
+
+.stat-row { display: flex; flex-wrap: wrap; gap: 12px 40px; align-items: baseline; }
+.stat b { font: 700 40px/1 var(--f-display); color: var(--accent); font-variant-numeric: tabular-nums; }
+.stat span { display: block; color: var(--muted); font-size: 14px; margin-top: 4px; }
+
+.measures { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 0; border-top: 1px solid var(--rule); }
+.measures div { padding: 14px 16px 14px 0; border-bottom: 1px solid var(--rule); display: grid; gap: 4px; align-content: start; min-width: 0; }
+.measures b { font-weight: 600; }
+.measures span { color: var(--muted); font-size: 15px; line-height: 1.45; }
+
+.limits { margin: 0; padding: 0; list-style: none; display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.limits li { display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 6px 24px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.limits b { font-weight: 600; }
+.limits span { color: var(--muted); font-size: 15.5px; }
+@media (max-width: 600px) { .limits li { grid-template-columns: minmax(0, 1fr); } }
+
+footer { border-top: 2px solid var(--ink); padding-top: 16px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+footer p { margin: 0; }
+a { color: var(--accent); }
+</style>
+
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="eyebrow">Briefing for product and operations</div>
+    <h1>Stream Capture</h1>
+    <p class="lede">Stream Capture is the camera screen that takes the photo of a customer's ID card. It makes sure that the photo is sharp and large enough for the automatic ID check.</p>
+    <div class="outcomes">
+      <div><b>It opens the correct lens</b><span>Phones have many rear lenses. Stream Capture finds the main lens, not the zoom lens.</span></div>
+      <div><b>It keeps all the pixels</b><span>The photo has approximately 20 times more pixels than a simple camera page gives.</span></div>
+      <div><b>It reports each step</b><span>Each session gives timings, problems and one clear outcome for your dashboards.</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="kicker">01 · The customer's journey</div>
+    <h2>Five steps, from the open screen to the sent photo</h2>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 880 250" role="img" aria-label="Five phone screens in sequence: the sheet opens, the best lens starts, the card is in the frame, the customer taps, the photo is sent.">
+          <defs>
+            <marker id="j-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <!-- 1 sheet opens -->
+          <rect class="phone" x="20" y="10" width="96" height="176" rx="14"/>
+          <rect class="host" x="26" y="24" width="84" height="148" rx="4"/>
+          <rect class="cam" x="26" y="92" width="84" height="80" rx="4"/>
+          <line class="ln camk" x1="68" y1="150" x2="68" y2="112"/><path class="ah camk" d="M61,116 L68,104 L75,116 z"/>
+          <!-- 2 best lens -->
+          <rect class="phone" x="196" y="10" width="96" height="176" rx="14"/>
+          <rect class="cam" x="202" y="24" width="84" height="148" rx="4"/>
+          <rect class="guide dash" x="208" y="45" width="72" height="45" rx="3"/>
+          <circle class="shutter" cx="244" cy="118" r="11"/><circle class="shutter" cx="244" cy="118" r="4"/>
+          <circle class="shutter" cx="244" cy="152" r="8"/>
+          <!-- 3 card in frame -->
+          <rect class="phone" x="372" y="10" width="96" height="176" rx="14"/>
+          <rect class="cam" x="378" y="24" width="84" height="148" rx="4"/>
+          <rect class="card" x="386" y="48" width="68" height="40" rx="3"/>
+          <rect class="card-ink" x="391" y="54" width="15" height="20" rx="1"/>
+          <rect class="card-ink" x="411" y="56" width="37" height="3"/><rect class="card-ink" x="411" y="63" width="30" height="3"/><rect class="card-ink" x="411" y="70" width="34" height="3"/>
+          <rect class="guide" x="384" y="45" width="72" height="45" rx="3"/>
+          <circle class="shutter" cx="420" cy="152" r="8"/>
+          <!-- 4 tap -->
+          <rect class="phone" x="548" y="10" width="96" height="176" rx="14"/>
+          <rect class="cam" x="554" y="24" width="84" height="148" rx="4"/>
+          <rect class="card" x="562" y="48" width="68" height="40" rx="3"/>
+          <rect class="card-ink" x="567" y="54" width="15" height="20" rx="1"/>
+          <rect class="card-ink" x="587" y="56" width="37" height="3"/><rect class="card-ink" x="587" y="63" width="30" height="3"/><rect class="card-ink" x="587" y="70" width="34" height="3"/>
+          <rect class="guide" x="560" y="45" width="72" height="45" rx="3"/>
+          <circle class="ring" cx="596" cy="152" r="14"/>
+          <circle class="shutter on" cx="596" cy="152" r="8"/>
+          <!-- 5 sent -->
+          <rect class="phone" x="724" y="10" width="96" height="176" rx="14"/>
+          <rect class="host" x="730" y="24" width="84" height="148" rx="4"/>
+          <rect class="cam" x="730" y="132" width="84" height="40" rx="4"/>
+          <line class="ln camk" x1="772" y1="140" x2="772" y2="160"/><path class="ah camk" d="M765,156 L772,168 L779,156 z"/>
+          <circle cx="772" cy="78" r="20" fill="none" stroke="var(--accent)" stroke-width="2.5"/>
+          <path d="M762,78 L769,86 L783,70" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- connectors -->
+          <line class="ln mut" x1="124" y1="98" x2="186" y2="98" marker-end="url(#j-ah)"/>
+          <line class="ln mut" x1="300" y1="98" x2="362" y2="98" marker-end="url(#j-ah)"/>
+          <line class="ln mut" x1="476" y1="98" x2="538" y2="98" marker-end="url(#j-ah)"/>
+          <line class="ln mut" x1="652" y1="98" x2="714" y2="98" marker-end="url(#j-ah)"/>
+          <!-- captions -->
+          <text class="t b mid" x="68" y="214">1 · Sheet opens</text><text class="t s mid" x="68" y="234">slides up in 0.6 s</text>
+          <text class="t b mid" x="244" y="214">2 · Best lens starts</text><text class="t s mid" x="244" y="234">after camera permission</text>
+          <text class="t b mid" x="420" y="214">3 · Card in the frame</text><text class="t s mid" x="420" y="234">customer lines it up</text>
+          <text class="t b mid" x="596" y="214">4 · Tap</text><text class="t s mid" x="596" y="234">sharpest of 4 frames kept</text>
+          <text class="t b mid" x="772" y="214">5 · Photo sent</text><text class="t s mid" x="772" y="234">sheet slides away</text>
+        </svg>
+      </div>
+      <figcaption>The frame on the screen is the exact area of the photo. <b>What the customer sees in the frame is what your ID check gets.</b> If the customer taps Cancel, the sheet closes and nothing is sent.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="kicker">02 · Problem 1</div>
+    <h2>Phones can open the wrong lens</h2>
+    <p>Most new phones have two to four rear lenses. A simple camera page asks the browser for "a rear camera". The browser can then start the zoom lens. The card is too close, and the photo is not sharp.</p>
+    <div class="pair">
+      <figure>
+        <h3><span class="pill bad">Before</span>A simple camera page</h3>
+        <svg viewBox="0 0 420 250" role="img" aria-label="A simple camera page: the browser starts the telephoto lens, and the card is too close and blurred.">
+          <defs>
+            <marker id="a-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah bad" d="M0,0 L10,5 L0,10 z"/></marker>
+            <clipPath id="a-clip"><rect x="270" y="16" width="134" height="218" rx="10"/></clipPath>
+            <filter id="a-blur" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="2.4"/></filter>
+          </defs>
+          <text class="t s" x="16" y="26">Rear lenses</text>
+          <rect class="node" x="16" y="40" width="150" height="40" rx="20"/><text class="t mid" x="91" y="65">Main</text>
+          <rect class="node bad" x="16" y="100" width="150" height="40" rx="20"/><text class="t mid b" x="91" y="125">Telephoto</text>
+          <rect class="node" x="16" y="160" width="150" height="40" rx="20"/><text class="t mid" x="91" y="185">Ultra-wide</text>
+          <line class="ln badl" x1="170" y1="120" x2="262" y2="120" marker-end="url(#a-ah)"/>
+          <text class="t s mid" x="216" y="110">browser's choice</text>
+          <rect class="cam" x="270" y="16" width="134" height="218" rx="10"/>
+          <g clip-path="url(#a-clip)">
+            <g filter="url(#a-blur)">
+              <rect class="card" x="250" y="20" width="230" height="145" rx="8"/>
+              <rect class="card-ink" x="266" y="40" width="52" height="70" rx="3"/>
+              <rect class="card-ink" x="334" y="48" width="120" height="9"/><rect class="card-ink" x="334" y="70" width="96" height="9"/><rect class="card-ink" x="334" y="92" width="110" height="9"/>
+            </g>
+          </g>
+          <rect class="guide dash" x="278" y="45" width="118" height="74" rx="4"/>
+        </svg>
+        <figcaption>The card is larger than the frame and the edges are missing. The zoom lens cannot focus this close, so the text is not sharp.</figcaption>
+      </figure>
+      <figure>
+        <h3><span class="pill good">After</span>Stream Capture</h3>
+        <svg viewBox="0 0 420 250" role="img" aria-label="Stream Capture: each lens gets a score, the main lens wins and the whole card is sharp in the frame.">
+          <defs>
+            <marker id="b-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah acc" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <text class="t s" x="16" y="26">Rear lenses, with score</text>
+          <rect class="node acc" x="16" y="40" width="150" height="40" rx="20"/><text class="t b" x="34" y="65">Main</text><text class="t mono acc end" x="150" y="65">372</text>
+          <rect class="node" x="16" y="100" width="150" height="40" rx="20"/><text class="t" x="34" y="125">Telephoto</text><text class="t mono end" x="150" y="125">−178</text>
+          <rect class="node" x="16" y="160" width="150" height="40" rx="20"/><text class="t" x="34" y="185">Ultra-wide</text><text class="t mono end" x="150" y="185">−478</text>
+          <line class="ln acc" x1="170" y1="60" x2="262" y2="60" marker-end="url(#b-ah)"/>
+          <text class="t s mid" x="216" y="50">highest score</text>
+          <rect class="cam" x="270" y="16" width="134" height="218" rx="10"/>
+          <rect class="card" x="282" y="49" width="110" height="66" rx="4"/>
+          <rect class="card-ink" x="289" y="57" width="24" height="34" rx="2"/>
+          <rect class="card-ink" x="320" y="60" width="62" height="5"/><rect class="card-ink" x="320" y="71" width="48" height="5"/><rect class="card-ink" x="320" y="82" width="56" height="5"/>
+          <rect class="guide" x="278" y="45" width="118" height="74" rx="4"/>
+          <circle class="shutter" cx="337" cy="208" r="11"/>
+        </svg>
+        <figcaption>Stream Capture gives each lens a score and starts the lens with the highest score. The full card fits the frame and the text is sharp.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker">03 · How the lens is selected</div>
+    <h2>Each lens gets a score</h2>
+    <p>Stream Capture reads what each lens reports: its resolution, its zoom range and its name. It adds points for resolution and for a main-lens name. It subtracts points for names like "tele", "wide" or "macro". A rear lens with the highest score starts.</p>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 880 340" role="img" aria-label="Score chart for an example iPhone: Back Camera 372, Back Triple Camera 122, Back Telephoto Camera minus 178, Back Dual Wide Camera minus 178, Back Ultra Wide Camera minus 478. The front camera is not scored.">
+          <line class="grid" x1="285" y1="20" x2="285" y2="310"/>
+          <line class="grid" x1="835" y1="20" x2="835" y2="310"/>
+          <line class="axis" x1="560" y1="20" x2="560" y2="310"/>
+          <text class="t s mid" x="285" y="14">−500</text>
+          <text class="t s mid" x="560" y="14">0</text>
+          <text class="t s mid" x="835" y="14">+500</text>
+
+          <rect class="bar win" x="560" y="33" width="204.6" height="24"/>
+          <text class="t b" x="20" y="44">Back Camera</text><text class="t s" x="20" y="62">12 MP + main-lens name</text>
+          <text class="t mono acc" x="772" y="51">372</text><text class="t s acc" x="804" y="51">selected</text>
+
+          <rect class="bar" x="560" y="83" width="67.1" height="24"/>
+          <text class="t b" x="20" y="94">Back Triple Camera</text><text class="t s" x="20" y="112">12 MP</text>
+          <text class="t mono" x="635" y="101">122</text>
+
+          <rect class="bar neg" x="462.1" y="133" width="97.9" height="24"/>
+          <text class="t b" x="20" y="144">Back Telephoto Camera</text><text class="t s" x="20" y="162">12 MP, "tele" in the name</text>
+          <text class="t mono end" x="454" y="151">−178</text>
+
+          <rect class="bar neg" x="462.1" y="183" width="97.9" height="24"/>
+          <text class="t b" x="20" y="194">Back Dual Wide Camera</text><text class="t s" x="20" y="212">12 MP, "wide" in the name</text>
+          <text class="t mono end" x="454" y="201">−178</text>
+
+          <rect class="bar neg" x="297.1" y="233" width="262.9" height="24"/>
+          <text class="t b" x="20" y="244">Back Ultra Wide Camera</text><text class="t s" x="20" y="262">"ultra" and "wide" in the name</text>
+          <text class="t mono end" x="289" y="251">−478</text>
+
+          <text class="t b" x="20" y="294" style="fill:var(--muted)">Front Camera</text><text class="t s" x="20" y="312">faces the customer</text>
+          <text class="t s" x="572" y="301">not a rear lens, not scored</text>
+        </svg>
+      </div>
+      <figcaption><b>Example only.</b> An iPhone with five rear cameras, each reporting 12 MP. Stream Capture remembers the result on the phone. On the next visit on Android, it skips the test. The customer can also switch to another lens if you turn on the switch button.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="kicker">04 · Problem 2</div>
+    <h2>A simple page throws away most of the pixels</h2>
+    <p>A simple camera page copies what the screen shows. A screen is small, so the photo of the card is small. Stream Capture cuts the same area from the full camera image instead.</p>
+    <figure>
+      <div class="stat-row">
+        <div class="stat"><b>20×</b><span>more pixels in the card area</span></div>
+        <div class="stat"><b>4.5×</b><span>wider photo of the card</span></div>
+      </div>
+      <div class="scroll">
+        <svg viewBox="0 0 720 370" role="img" aria-label="Two ID cards drawn to scale. A simple page gives 358 by 226 pixels. Stream Capture gives 1629 by 1027 pixels for the same card area.">
+          <text class="t h" x="20" y="252">Simple page</text>
+          <text class="t mono" x="20" y="272" style="fill:var(--muted)">358 × 226 px</text>
+          <rect class="card" x="20" y="285" width="100" height="63" rx="4"/>
+          <rect class="card-ink" x="26" y="294" width="25" height="35" rx="1.5"/>
+          <rect class="card-ink" x="57" y="297" width="54" height="4"/><rect class="card-ink" x="57" y="306" width="42" height="4"/><rect class="card-ink" x="57" y="315" width="49" height="4"/>
+
+          <text class="t h acc" x="220" y="28">Stream Capture</text>
+          <text class="t mono" x="220" y="48" style="fill:var(--muted)">1629 × 1027 px</text>
+          <rect class="card" x="220" y="60" width="456" height="288" rx="16"/>
+          <rect class="card-ink" x="248" y="100" width="114" height="160" rx="6"/>
+          <rect class="card-ink" x="388" y="112" width="246" height="16"/><rect class="card-ink" x="388" y="150" width="190" height="16"/><rect class="card-ink" x="388" y="188" width="222" height="16"/><rect class="card-ink" x="388" y="226" width="160" height="16"/>
+          <rect class="card-ink" x="248" y="296" width="400" height="14" opacity=".6"/>
+        </svg>
+      </div>
+      <figcaption><b>Drawn to scale.</b> Example: a phone with a 4K camera and a screen 390 points wide. A phone with a lower camera resolution gives a smaller photo, approximately 1000 px wide. The ID check needs the large version to read the text correctly.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="kicker">05 · What the photo contains</div>
+    <h2>The customer sees the card, the ID check gets a border too</h2>
+    <p>The photo contains a small border around the frame. The ID check uses this border to find the card edges and to straighten the card. The customer sees only the frame area.</p>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 860 360" role="img" aria-label="The sent photo is the card plus an 8 percent border. The customer sees only the guide box area.">
+          <defs>
+            <marker id="c-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <rect class="scene" x="20" y="16" width="520" height="328"/>
+          <rect class="card" x="58" y="41" width="444" height="278" rx="14"/>
+          <rect class="card-ink" x="84" y="78" width="110" height="150" rx="6"/>
+          <rect class="card-ink" x="218" y="90" width="240" height="15"/><rect class="card-ink" x="218" y="126" width="180" height="15"/><rect class="card-ink" x="218" y="162" width="210" height="15"/><rect class="card-ink" x="218" y="198" width="150" height="15"/>
+          <rect class="boxr" x="56" y="39" width="448" height="282" rx="10"/>
+          <rect class="cropr" x="20" y="16" width="520" height="328"/>
+          <line class="ln mut" x1="592" y1="30" x2="546" y2="30" marker-end="url(#c-ah)"/>
+          <text class="t b crop" x="600" y="34">Sent to the ID check</text>
+          <text class="t s" x="600" y="54">the card and an 8% border</text>
+          <line class="ln mut" x1="592" y1="180" x2="510" y2="180" marker-end="url(#c-ah)"/>
+          <text class="t b acc" x="600" y="184">Shown to the customer</text>
+          <text class="t s" x="600" y="204">the frame area only</text>
+        </svg>
+      </div>
+      <figcaption>Your team can select a different setup. The ID check can get the card only, with no border. Or it can get two files: the photo with the border and the card only.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="kicker">06 · Where the data goes</div>
+    <h2>Stream Capture sends nothing to a server</h2>
+    <p>Stream Capture gives the photo and the events to your own app on the phone. Your app's code decides where to send them. The only thing kept on the phone is the selected lens.</p>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 880 300" role="img" aria-label="Inside the customer's phone, Stream Capture gives the photo and the events to your web app and stores the lens choice in browser storage. Only your app's code sends data to the ID check and to analytics.">
+          <defs>
+            <marker id="d-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="d-ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <rect class="zone" x="20" y="16" width="430" height="268" rx="18"/>
+          <text class="t s" x="40" y="40">Customer's phone</text>
+
+          <rect class="node soft" x="40" y="54" width="390" height="144" rx="6"/>
+          <text class="t s" x="56" y="76">Your web app</text>
+          <rect class="node acc" x="56" y="90" width="170" height="90" rx="6"/>
+          <text class="t h mid" x="141" y="130">Stream Capture</text>
+          <text class="t s mid" x="141" y="150">takes the photo</text>
+          <rect class="node" x="282" y="90" width="132" height="38" rx="5"/><text class="t mid" x="348" y="114">Photo handler</text>
+          <rect class="node" x="282" y="142" width="132" height="38" rx="5"/><text class="t mid" x="348" y="166">Event handler</text>
+          <line class="ln" x1="226" y1="109" x2="278" y2="109" marker-end="url(#d-ah)"/><text class="t s mid" x="252" y="102">photo</text>
+          <line class="ln" x1="226" y1="161" x2="278" y2="161" marker-end="url(#d-ah)"/><text class="t s mid" x="252" y="154">events</text>
+
+          <rect class="node" x="56" y="220" width="170" height="48" rx="5"/>
+          <text class="t mid" x="141" y="241">Browser storage</text><text class="t s mid" x="141" y="259">lens ID and name</text>
+          <line class="ln mut" x1="141" y1="182" x2="141" y2="216" marker-end="url(#d-ahm)"/>
+          <text class="t s" x="150" y="204">remembers lens</text>
+
+          <rect class="node" x="620" y="70" width="230" height="58" rx="6"/>
+          <text class="t b mid" x="735" y="96">ID check backend</text><text class="t s mid" x="735" y="115">your server</text>
+          <rect class="node" x="620" y="160" width="230" height="58" rx="6"/>
+          <text class="t b mid" x="735" y="186">Analytics</text><text class="t s mid" x="735" y="205">your tools</text>
+          <line class="ln" x1="414" y1="109" x2="616" y2="99" marker-end="url(#d-ah)"/><text class="t s mid" x="530" y="94">your code uploads</text>
+          <line class="ln" x1="414" y1="161" x2="616" y2="189" marker-end="url(#d-ah)"/><text class="t s mid" x="530" y="196">your code reports</text>
+        </svg>
+      </div>
+      <figcaption><b>Privacy:</b> the events contain the lens name, for example "Back Camera". This name can help to identify a device. Do a privacy review before you send it to a third party.</figcaption>
+    </figure>
+  </section>
+
+  <section>
+    <div class="kicker">07 · What you can measure</div>
+    <h2>Each session ends in exactly one outcome</h2>
+    <p>Stream Capture reports each step to your analytics. Each session ends with one of three outcomes, never two. As a result, your funnel numbers always add up.</p>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 880 330" role="img" aria-label="Session flow: opened, camera ready, photo taken, then closed with a photo. A camera problem can go back with try again, or to closed and cancelled. At any step the app can remove the sheet, which is abandoned.">
+          <defs>
+            <marker id="e-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="e-ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah bad" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="e-ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <text class="t s mid" x="770" y="22">Outcomes · one per session</text>
+
+          <rect class="node" x="20" y="40" width="150" height="56" rx="6"/><text class="t b mid" x="95" y="73">Opened</text>
+          <rect class="node" x="230" y="40" width="150" height="56" rx="6"/><text class="t b mid" x="305" y="73">Camera ready</text>
+          <rect class="node" x="440" y="40" width="150" height="56" rx="6"/><text class="t b mid" x="515" y="73">Photo taken</text>
+          <rect class="node end" x="680" y="40" width="180" height="56" rx="6"/><text class="t b mid" x="770" y="66">Closed</text><text class="t s mid" x="770" y="84">with a photo</text>
+
+          <rect class="node bad" x="230" y="170" width="150" height="56" rx="6"/><text class="t b mid" x="305" y="196">Camera problem</text><text class="t s mid" x="305" y="214">reason reported</text>
+          <rect class="node end" x="680" y="170" width="180" height="56" rx="6"/><text class="t b mid" x="770" y="196">Closed</text><text class="t s mid" x="770" y="214">cancelled</text>
+          <rect class="node end" x="680" y="262" width="180" height="56" rx="6"/><text class="t b mid" x="770" y="288">Abandoned</text><text class="t s mid" x="770" y="306">app removed the sheet</text>
+
+          <line class="ln" x1="170" y1="68" x2="226" y2="68" marker-end="url(#e-ah)"/><text class="t s mid" x="198" y="60">starts</text>
+          <line class="ln" x1="380" y1="68" x2="436" y2="68" marker-end="url(#e-ah)"/><text class="t s mid" x="408" y="60">tap</text>
+          <line class="ln" x1="590" y1="68" x2="676" y2="68" marker-end="url(#e-ah)"/><text class="t s mid" x="633" y="60">sent</text>
+          <line class="ln badl" x1="285" y1="96" x2="285" y2="166" marker-end="url(#e-ahb)"/><text class="t s end" x="277" y="136">fails</text>
+          <line class="ln" x1="325" y1="170" x2="325" y2="100" marker-end="url(#e-ah)"/><text class="t s" x="333" y="136">try again</text>
+          <line class="ln" x1="380" y1="198" x2="676" y2="198" marker-end="url(#e-ah)"/><text class="t s mid" x="528" y="190">cancel</text>
+          <path class="ln" d="M380,86 C470,110 560,150 676,184" marker-end="url(#e-ah)"/><text class="t s" x="470" y="128">cancel</text>
+          <line class="ln mut dash" x1="20" y1="290" x2="676" y2="290" marker-end="url(#e-ahm)"/>
+          <text class="t s" x="20" y="280">at any step, the app leaves the screen</text>
+        </svg>
+      </div>
+      <figcaption>Each event also has a time since the sheet opened. "Camera ready" gives the time to the first preview. That is the main speed number.</figcaption>
+    </figure>
+    <div class="measures">
+      <div><b>Time to preview</b><span>From the open screen to the live camera.</span></div>
+      <div><b>Time to photo</b><span>From the tap to the finished file.</span></div>
+      <div><b>Why the camera did not start</b><span>Permission refused, camera in use by another app, or other.</span></div>
+      <div><b>Which lens each phone used</b><span>This data shows phone models that select incorrectly.</span></div>
+      <div><b>Photo size and quality</b><span>Pixels, file size and compression level of each photo.</span></div>
+      <div><b>Outcome</b><span>Photo taken, cancelled, or abandoned.</span></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker">08 · Limits</div>
+    <h2>What to know before launch</h2>
+    <ul class="limits">
+      <li><b>Real phones are necessary for tests</b><span>A computer cannot test the lens selection. The project has no automatic tests. Only the code types are checked.</span></li>
+      <li><b>iPhones repeat the selection</b><span>Safari changes the camera IDs at each visit. Stream Capture then opens each lens for a short time again.</span></li>
+      <li><b>Older phones give smaller photos</b><span>A phone with a 1080p camera preview gives a card photo of approximately 1000 px. This is still the exact frame area.</span></li>
+      <li><b>New phones can confuse the score</b><span>The score uses rules about lens names and zoom. The lens data in the events shows these phones. Developers can then add an override.</span></li>
+      <li><b>The demo keeps no photos</b><span>The public test page keeps the photo in the page memory only. The photo goes away when you close the tab.</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Source: the stream-capture repository at commit dcf9311. Plain language follows the ASD-STE100 writing rules.</p>
+    <p>Engineers: the full technical description is in the <a href="/docs/manual/">Stream Capture Description and Operation</a> page. To try the component, open the <a href="/">demo</a>.</p>
+  </footer>
+</div>
+</body>
+</html>
