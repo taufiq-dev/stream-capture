@@ -36,6 +36,25 @@ export const Lead = styled.p`
   color: ${({ theme }) => theme.foundation.color.textMuted};
 `;
 
+// Plain links: the docs are static pages served next to the demo (public/docs), not React routes.
+export const DocsNav = styled.nav`
+  margin-top: ${({ theme }) => theme.foundation.space[12]};
+  display: flex;
+  flex-wrap: wrap;
+  gap: ${({ theme }) => `${theme.foundation.space[4]} ${theme.foundation.space[16]}`};
+
+  a {
+    color: ${({ theme }) => theme.foundation.color.primary};
+    font-weight: 600;
+    text-decoration: none;
+  }
+
+  a:hover,
+  a:focus-visible {
+    text-decoration: underline;
+  }
+`;
+
 export const Card = styled.section`
   background: ${({ theme }) => theme.foundation.color.surface};
   border: 1px solid ${({ theme }) => theme.foundation.color.border};

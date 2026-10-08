@@ -16,6 +16,7 @@ import {
   Card,
   CardTitle,
   Count,
+  DocsNav,
   Field,
   Figure,
   FigureLabel,
@@ -437,6 +438,10 @@ const App = () => {
           <strong>Nothing leaves your device.</strong> There is no backend here — a captured photo is held
           in this page&rsquo;s memory to display, and is gone when you close the tab.
         </Lead>
+        <DocsNav aria-label="How it works">
+          <a href="/docs/briefing/">How it works: the briefing</a>
+          <a href="/docs/manual/">Engineering manual</a>
+        </DocsNav>
       </header>
 
       <Card>
