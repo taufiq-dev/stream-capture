@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A plain-language, diagram-led explanation of how Stream Capture picks the right lens, keeps a sharp ID photo and reports each session.">
 <title>Stream Capture Briefing</title>
+<script>/* Apply a saved theme before first paint, so the page does not flash. */try{var t=localStorage.getItem("docs/theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -144,6 +145,14 @@ svg { display: block; width: 100%; height: auto; color: var(--ink); }
 .limits span { color: var(--muted); font-size: 15.5px; }
 @media (max-width: 600px) { .limits li { grid-template-columns: minmax(0, 1fr); } }
 
+/* Theme switch */
+.theme-switch { display: inline-flex; border: 1px solid var(--rule); background: var(--sheet); width: max-content; }
+.theme-switch button { font: 500 12.5px/1 var(--f-body); color: var(--muted); background: none; border: 0; padding: 8px 11px; cursor: pointer; }
+.theme-switch button + button { border-left: 1px solid var(--rule); }
+.theme-switch button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.theme-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
 footer { border-top: 2px solid var(--ink); padding-top: 16px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
 footer p { margin: 0; }
 a { color: var(--accent); }
@@ -153,7 +162,14 @@ a { color: var(--accent); }
 <body>
 <div class="page">
   <header>
-    <div class="eyebrow">Briefing for product and operations</div>
+    <div class="topbar">
+      <div class="eyebrow">Briefing for product and operations</div>
+      <div class="theme-switch" role="group" aria-label="Colour theme">
+        <button type="button" data-theme-choice="system" aria-pressed="true">Auto</button>
+        <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+        <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
     <h1>Stream Capture</h1>
     <p class="lede">Stream Capture is the camera screen that takes the photo of a customer's ID card. It makes sure that the photo is sharp and large enough for the automatic ID check.</p>
     <div class="outcomes">
@@ -482,5 +498,26 @@ a { color: var(--accent); }
     <p>Engineers: the full technical description is in the <a href="/docs/manual/">Stream Capture Description and Operation</a> page. To try the component, open the <a href="/">demo</a>.</p>
   </footer>
 </div>
+<script>
+(function () {
+  // Auto removes data-theme, so the page follows prefers-color-scheme. The choice is shared by
+  // both docs pages through one localStorage key.
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll("[data-theme-choice]");
+  function mark(choice) {
+    buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-choice") === choice)); });
+  }
+  function apply(choice) {
+    if (choice === "light" || choice === "dark") root.setAttribute("data-theme", choice);
+    else root.removeAttribute("data-theme");
+    mark(choice);
+    try { localStorage.setItem("docs/theme", choice); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("docs/theme"); } catch (e) {}
+  mark(saved === "light" || saved === "dark" ? saved : "system");
+  buttons.forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-theme-choice")); }); });
+})();
+</script>
 </body>
 </html>
