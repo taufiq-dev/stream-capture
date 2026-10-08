@@ -134,6 +134,15 @@ tr.out td { color: var(--muted); }
 .callout.note > b { color: var(--muted); }
 .cautions { display: grid; gap: 12px; }
 
+/* Web API annotation */
+.api { border: 1.5px solid var(--accent); background: var(--accent-soft); padding: 12px 16px 14px; display: grid; gap: 10px; }
+.api > b { font: 700 12px/1 var(--f-display); letter-spacing: .18em; color: var(--accent); }
+.api > p { margin: 0; }
+.api .tbl { background: var(--sheet); }
+.api td.k { white-space: normal; overflow-wrap: anywhere; min-width: 13em; }
+.api td.k a { color: var(--accent); text-decoration: none; }
+.api td.k a:hover, .api td.k a:focus-visible { text-decoration: underline; }
+
 /* Formula */
 pre.formula { margin: 0; font: 400 13.5px/1.7 var(--f-mono); background: var(--code-bg); padding: 14px 16px; overflow-x: auto; }
 
@@ -270,6 +279,20 @@ footer p { margin: 0; }
       <h2><span class="n">4</span>Camera selection</h2>
       <h3><span class="n">4.1</span>Description</h3>
       <p>The browser does not give the camera list in a stable sequence. As a result, the position of a camera in the list has no meaning. The component reads the capabilities of each camera and gives each camera a score.</p>
+      <aside class="api" aria-label="Web API reference">
+        <b>WEB API</b>
+        <p>The component uses these browser functions to find and open the cameras. The links go to the MDN reference.</p>
+        <div class="tbl"><table>
+          <thead><tr><th>Function</th><th>What it gives</th><th>Limit</th></tr></thead>
+          <tbody>
+            <tr><td class="k"><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia">navigator.mediaDevices<wbr>.getUserMedia()</a></td><td>Opens a camera and gives a <code>MediaStream</code>. The first call shows the permission prompt.</td><td><code>facingMode: "environment"</code> selects a rear camera. It cannot select a specific lens.</td></tr>
+            <tr><td class="k"><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/enumerateDevices">navigator.mediaDevices<wbr>.enumerateDevices()</a></td><td>Gives the list of cameras and microphones as <code>MediaDeviceInfo</code> objects.</td><td>Before permission, the labels and the device IDs are empty. The browser and the phone set the sequence.</td></tr>
+            <tr><td class="k"><a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack/getCapabilities">MediaStreamTrack<wbr>.getCapabilities()</a></td><td>Gives the resolution, the zoom range and the facing mode of a camera.</td><td>The camera must be open.</td></tr>
+            <tr><td class="k"><a href="https://developer.mozilla.org/en-US/docs/Web/API/InputDeviceInfo/getCapabilities">InputDeviceInfo<wbr>.getCapabilities()</a></td><td>Gives the same data without opening the camera.</td><td>Chromium only. Safari and Firefox do not have it.</td></tr>
+          </tbody>
+        </table></div>
+        <p>Because of these limits, the component calls <code>getUserMedia()</code> first and <code>enumerateDevices()</code> second. Section 4.2 gives the steps.</p>
+      </aside>
       <h3><span class="n">4.2</span>Steps of the selection</h3>
       <p>The function <code>selectMainRearCamera()</code> does these steps:</p>
       <ol class="proc">
