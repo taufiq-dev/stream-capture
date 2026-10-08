@@ -105,9 +105,12 @@ code { font: 400 .88em/1 var(--f-mono); background: var(--code-bg); padding: .12
 a { color: var(--accent); }
 
 ol.seq, ol.proc { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: 10px; }
-ol.seq > li, ol.proc > li { counter-increment: s; display: grid; grid-template-columns: 2.4em minmax(0, 1fr); align-items: baseline; }
-ol.seq > li::before, ol.proc > li::before { content: counter(s) "."; font: 500 14px/1 var(--f-mono); color: var(--accent); }
-ol.proc > li { padding: 10px 0; border-top: 1px solid var(--rule); }
+/* The number is positioned, not a grid column: in a grid, each inline <code> in a step would
+   become its own grid item and fall into the number column. */
+ol.seq > li, ol.proc > li { counter-increment: s; position: relative; padding-left: 2.4em; }
+ol.seq > li::before, ol.proc > li::before { content: counter(s) "."; position: absolute; left: 0; top: .4em; font: 500 14px/1 var(--f-mono); color: var(--accent); }
+ol.proc > li { padding-block: 10px; border-top: 1px solid var(--rule); }
+ol.proc > li::before { top: calc(10px + .4em); }
 ol.proc > li:last-child { border-bottom: 1px solid var(--rule); }
 ol.proc .goto { font: 500 12px/1 var(--f-mono); color: var(--accent); background: var(--accent-soft); padding: 3px 6px; margin-left: 4px; white-space: nowrap; }
 ul.plain { margin: 0; padding-left: 1.2em; display: grid; gap: 6px; }
