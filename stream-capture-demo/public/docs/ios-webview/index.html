@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Why Stream Capture opens in a full-screen video player inside some iPhone apps, and the one WKWebView setting that fixes it.">
+<title>iOS WebView Camera Fix</title>
+<script>/* Apply a saved theme before first paint, so the page does not flash. */try{var t=localStorage.getItem("docs/theme");if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t);}catch(e){}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body { margin: 0; }
+[hidden] { display: none !important; }
+/* Layout: an integration note for another team's iOS engineers. Same family as the briefing
+   (Plex, petrol accent, one reading column); code blocks and the CAUTION callout from the manual.
+   Self-contained on purpose: it is sent around as a single saved file. */
+:root {
+  --paper: #f3f5f7;
+  --sheet: #ffffff;
+  --ink: #16202a;
+  --muted: #5a6773;
+  --rule: #d6dde3;
+  --accent: #0a6680;
+  --accent-soft: #e0eff4;
+  --bad: #b3261e;
+  --bad-soft: #fbe6e4;
+  --caution: #9a5b00;
+  --caution-bg: #fff3df;
+  --code-bg: #e8edf1;
+  --cam: #1d272e;
+  --cam-ink: #e6edf1;
+  --card: #cfe5ec;
+  --card-ink: #557784;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Helvetica Neue", Arial, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0e1317; --sheet: #151c22; --ink: #e2e8ed; --muted: #97a4b0; --rule: #2b363f;
+    --accent: #62c2dc; --accent-soft: #163039; --bad: #ff8a80; --bad-soft: #3a1d1b;
+    --caution: #f0b35b; --caution-bg: #2a2214; --code-bg: #1f2a32;
+    --cam: #070b0e; --cam-ink: #dbe4ea; --card: #2b4b57; --card-ink: #8fb4c1;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0e1317; --sheet: #151c22; --ink: #e2e8ed; --muted: #97a4b0; --rule: #2b363f;
+  --accent: #62c2dc; --accent-soft: #163039; --bad: #ff8a80; --bad-soft: #3a1d1b;
+  --caution: #f0b35b; --caution-bg: #2a2214; --code-bg: #1f2a32;
+  --cam: #070b0e; --cam-ink: #dbe4ea; --card: #2b4b57; --card-ink: #8fb4c1;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 400 17px/1.6 var(--f-body); padding-inline: 16px; padding-block: 40px 72px; -webkit-font-smoothing: antialiased; }
+.page { max-width: 940px; margin: 0 auto; display: grid; gap: 64px; }
+
+header { display: grid; gap: 18px; }
+.eyebrow { font: 600 12px/1 var(--f-body); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(38px, 7.4vw, 62px)/1.02 var(--f-display); margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+.lede { font-size: clamp(19px, 2.4vw, 22px); line-height: 1.5; max-width: 44ch; margin: 0; text-wrap: pretty; }
+.outcomes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0; border-top: 2px solid var(--ink); margin-top: 12px; }
+.outcomes div { padding: 16px 18px 4px 0; display: grid; gap: 4px; align-content: start; min-width: 0; }
+.outcomes small { font: 600 11px/1 var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.outcomes b { font: 700 19px/1.2 var(--f-display); }
+.outcomes span { color: var(--muted); font-size: 15px; line-height: 1.45; }
+
+section { display: grid; gap: 18px; }
+section > * { margin: 0; }
+.kicker { font: 500 12px/1 var(--f-mono); color: var(--accent); letter-spacing: .04em; }
+h2 { font: 700 clamp(26px, 4vw, 34px)/1.12 var(--f-display); text-wrap: balance; max-width: 28ch; }
+p { max-width: 64ch; }
+.muted { color: var(--muted); }
+code { font: 400 .88em/1 var(--f-mono); background: var(--code-bg); padding: .12em .32em; border-radius: 2px; overflow-wrap: anywhere; }
+
+figure { margin: 0; background: var(--sheet); border: 1px solid var(--rule); padding: clamp(14px, 3vw, 28px); display: grid; gap: 14px; min-width: 0; }
+figcaption { font-size: 14.5px; line-height: 1.5; color: var(--muted); max-width: 70ch; }
+figcaption b { color: var(--ink); font-weight: 600; }
+.scroll { overflow-x: auto; }
+.scroll svg { min-width: 640px; }
+svg { display: block; width: 100%; height: auto; color: var(--ink); }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.pair figure { gap: 10px; }
+.pair h3 { margin: 0; font: 700 17px/1.2 var(--f-display); display: flex; gap: 8px; align-items: center; }
+.pill { font: 600 10.5px/1 var(--f-body); letter-spacing: .1em; text-transform: uppercase; padding: 4px 7px; border: 1px solid currentColor; }
+.pill.bad { color: var(--bad); }
+.pill.good { color: var(--accent); }
+
+/* SVG paint, all from tokens */
+.t { fill: currentColor; font-family: var(--f-body); font-size: 14px; }
+.t.s { font-size: 12.5px; fill: var(--muted); }
+.t.b { font-weight: 600; }
+.t.h { font-family: var(--f-display); font-weight: 700; font-size: 16px; }
+.t.mono { font-family: var(--f-mono); font-size: 13px; }
+.t.acc { fill: var(--accent); }
+.t.badt { fill: var(--bad); }
+.t.mid { text-anchor: middle; }
+.phone { fill: var(--sheet); stroke: currentColor; stroke-width: 1.5; }
+.cam { fill: var(--cam); }
+.pbtn { fill: var(--cam-ink); fill-opacity: .2; }
+.pico { fill: var(--cam-ink); }
+.pline { stroke: var(--cam-ink); stroke-width: 2; stroke-linecap: round; }
+.guide { fill: none; stroke: var(--cam-ink); stroke-width: 1.8; }
+.card { fill: var(--card); }
+.card-ink { fill: var(--card-ink); }
+.shutter { fill: none; stroke: var(--cam-ink); stroke-width: 2; }
+.ring { fill: none; stroke: var(--bad); stroke-width: 2.4; }
+.ln { fill: none; stroke: currentColor; stroke-width: 1.5; }
+.ln.acc { stroke: var(--accent); stroke-width: 2.2; }
+.ln.badl { stroke: var(--bad); stroke-width: 2.2; }
+.ln.mut { stroke: var(--muted); }
+.ah { fill: currentColor; }
+.ah.acc { fill: var(--accent); }
+.ah.bad { fill: var(--bad); }
+.ah.mut { fill: var(--muted); }
+.node { fill: var(--sheet); stroke: currentColor; stroke-width: 1.5; }
+.node.acc { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.node.bad { fill: var(--bad-soft); stroke: var(--bad); stroke-width: 2; }
+.node.key { stroke-width: 2.5; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; background: var(--sheet); border: 1px solid var(--rule); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; line-height: 1.45; min-width: 560px; }
+th { font: 600 11px/1.2 var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); text-align: left; background: var(--paper); padding: 9px 12px; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td code { font-size: .84em; }
+tr.badrow td { background: var(--bad-soft); }
+tr.goodrow td { background: var(--accent-soft); }
+.res-bad { color: var(--bad); font-weight: 600; }
+.res-good { color: var(--accent); font-weight: 600; }
+
+/* Code blocks */
+.codes { display: grid; gap: 16px; }
+.code { background: var(--sheet); border: 1px solid var(--rule); min-width: 0; }
+.code-h { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 8px 8px 14px; border-bottom: 1px solid var(--rule); }
+.code-h b { font: 700 15px/1.2 var(--f-display); }
+.code-h span { font: 400 13px/1.3 var(--f-body); color: var(--muted); margin-left: 8px; }
+.copy { font: 500 12.5px/1 var(--f-body); color: var(--accent); background: none; border: 1px solid var(--rule); padding: 7px 10px; cursor: pointer; flex: none; }
+.copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+pre { margin: 0; font: 400 13.5px/1.7 var(--f-mono); background: var(--code-bg); padding: 14px 16px; overflow-x: auto; tab-size: 2; }
+pre code { font: inherit; background: none; padding: 0; overflow-wrap: normal; }
+pre .c { color: var(--muted); }
+pre .k { color: var(--accent); font-weight: 500; }
+pre .x { color: var(--bad); }
+
+.callout { border: 1.5px solid var(--caution); background: var(--caution-bg); padding: 12px 16px 14px; display: grid; gap: 8px; max-width: 76ch; }
+.callout > b { font: 700 12px/1 var(--f-display); letter-spacing: .18em; color: var(--caution); }
+.callout p { margin: 0; }
+.callout pre { background: var(--sheet); border: 1px solid var(--rule); }
+
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; display: grid; gap: 12px; max-width: 70ch; }
+ol.steps li { counter-increment: step; position: relative; padding-left: 40px; }
+ol.steps li::before { content: counter(step); position: absolute; left: 0; top: 1px; width: 26px; height: 26px; display: grid; place-items: center; font: 600 13px/1 var(--f-mono); color: var(--accent); border: 1.5px solid var(--accent); }
+
+.limits { margin: 0; padding: 0; list-style: none; display: grid; gap: 0; border-top: 1px solid var(--rule); }
+.limits li { display: grid; grid-template-columns: minmax(0, 14em) minmax(0, 1fr); gap: 6px 24px; padding: 14px 0; border-bottom: 1px solid var(--rule); }
+.limits b { font-weight: 600; }
+.limits span { color: var(--muted); font-size: 15.5px; }
+@media (max-width: 600px) { .limits li { grid-template-columns: minmax(0, 1fr); } }
+
+/* Theme switch */
+.theme-switch { display: inline-flex; border: 1px solid var(--rule); background: var(--sheet); width: max-content; }
+.theme-switch button { font: 500 12.5px/1 var(--f-body); color: var(--muted); background: none; border: 0; padding: 8px 11px; cursor: pointer; }
+.theme-switch button + button { border-left: 1px solid var(--rule); }
+.theme-switch button[aria-pressed="true"] { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
+.theme-switch button:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+footer { border-top: 2px solid var(--ink); padding-top: 16px; font-size: 13px; color: var(--muted); display: grid; gap: 4px; }
+footer p { margin: 0; }
+a { color: var(--accent); }
+
+@media print {
+  .theme-switch, .copy { display: none; }
+  body { padding: 0; }
+  .page { gap: 36px; }
+  section, figure, .code { break-inside: avoid; }
+}
+</style>
+
+</head>
+<body>
+<div class="page">
+  <header>
+    <div class="topbar">
+      <div class="eyebrow">Integration note · iOS host apps</div>
+      <div class="theme-switch" role="group" aria-label="Colour theme">
+        <button type="button" data-theme-choice="system" aria-pressed="true">Auto</button>
+        <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+        <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+    <h1>The ID camera opens in a full-screen video player</h1>
+    <p class="lede">In some iPhone apps, the camera opens in the native iOS video player. The customer must tap the × button to see the guide frame. The cause is one WebView setting in the host app. The web page cannot change this setting.</p>
+    <div class="outcomes">
+      <div><small>Symptom</small><b>A video player covers the camera</b><span>Only on iPhone. Android, and iOS apps that have the setting, show the guide frame at once.</span></div>
+      <div><small>Cause</small><b>Inline media playback is off</b><span>The app's <code>WKWebView</code> does not allow inline video. On iPhone, this is the default.</span></div>
+      <div><small>Fix</small><b>One line in the native app</b><span>Set <code>allowsInlineMediaPlayback = true</code> on the configuration, before you create the web view.</span></div>
+    </div>
+  </header>
+
+  <section>
+    <div class="kicker">01 · What the customer sees</div>
+    <h2>The same web page, two different host apps</h2>
+    <div class="pair">
+      <figure>
+        <h3><span class="pill bad">Now</span>Inline playback off</h3>
+        <svg viewBox="0 0 420 300" role="img" aria-label="An iPhone shows the native full-screen video player: the camera picture with no guide frame, a close button at the top left, and player controls at the bottom.">
+          <defs>
+            <marker id="a-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah bad" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="a-ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <rect class="phone" x="16" y="10" width="150" height="280" rx="22"/>
+          <rect class="cam" x="24" y="22" width="134" height="256" rx="14"/>
+          <!-- close button -->
+          <circle class="pbtn" cx="46" cy="46" r="11"/>
+          <line class="pline" x1="41.5" y1="41.5" x2="50.5" y2="50.5"/><line class="pline" x1="50.5" y1="41.5" x2="41.5" y2="50.5"/>
+          <circle class="ring" cx="46" cy="46" r="16"/>
+          <!-- camera picture, no guide frame -->
+          <rect class="card" x="38" y="118" width="106" height="66" rx="4"/>
+          <rect class="card-ink" x="44" y="126" width="24" height="34" rx="1.5"/>
+          <rect class="card-ink" x="74" y="129" width="60" height="5"/><rect class="card-ink" x="74" y="140" width="46" height="5"/><rect class="card-ink" x="74" y="151" width="54" height="5"/>
+          <!-- player controls -->
+          <rect class="pbtn" x="36" y="238" width="110" height="26" rx="13"/>
+          <rect class="pico" x="84" y="245" width="4" height="12" rx="1"/><rect class="pico" x="94" y="245" width="4" height="12" rx="1"/>
+          <!-- labels -->
+          <line class="ln badl" x1="196" y1="46" x2="66" y2="46" marker-end="url(#a-ah)"/>
+          <text class="t b badt" x="204" y="42">Close button</text>
+          <text class="t s" x="204" y="60">the customer must tap it</text>
+          <line class="ln mut" x1="196" y1="151" x2="150" y2="151" marker-end="url(#a-ahm)"/>
+          <text class="t b" x="204" y="147">Camera picture</text>
+          <text class="t s" x="204" y="165">full screen, no guide frame</text>
+          <line class="ln mut" x1="196" y1="251" x2="152" y2="251" marker-end="url(#a-ahm)"/>
+          <text class="t b" x="204" y="247">Player controls</text>
+          <text class="t s" x="204" y="265">the native iOS video player</text>
+        </svg>
+        <figcaption>iOS sends the preview video to its own full-screen player. Stream Capture's guide frame and shutter are under the player.</figcaption>
+      </figure>
+      <figure>
+        <h3><span class="pill good">Fixed</span>Inline playback on</h3>
+        <svg viewBox="0 0 420 300" role="img" aria-label="An iPhone shows Stream Capture as designed: the live camera picture inside the page, the card inside the guide frame, and the shutter button.">
+          <defs>
+            <marker id="b-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah acc" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="b-ahm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah mut" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <rect class="phone" x="16" y="10" width="150" height="280" rx="22"/>
+          <rect class="cam" x="24" y="22" width="134" height="256" rx="14"/>
+          <rect class="card" x="38" y="108" width="106" height="64" rx="4"/>
+          <rect class="card-ink" x="44" y="116" width="24" height="34" rx="1.5"/>
+          <rect class="card-ink" x="74" y="119" width="60" height="5"/><rect class="card-ink" x="74" y="130" width="46" height="5"/><rect class="card-ink" x="74" y="141" width="54" height="5"/>
+          <rect class="guide" x="34" y="104" width="114" height="72" rx="5"/>
+          <circle class="shutter" cx="91" cy="240" r="16"/><circle class="shutter" cx="91" cy="240" r="10"/>
+          <!-- labels -->
+          <line class="ln mut" x1="196" y1="62" x2="152" y2="62" marker-end="url(#b-ahm)"/>
+          <text class="t b" x="204" y="58">Live preview</text>
+          <text class="t s" x="204" y="76">inside the page</text>
+          <line class="ln acc" x1="196" y1="140" x2="152" y2="140" marker-end="url(#b-ah)"/>
+          <text class="t b acc" x="204" y="136">Guide frame</text>
+          <text class="t s" x="204" y="154">the area of the photo</text>
+          <line class="ln mut" x1="196" y1="240" x2="111" y2="240" marker-end="url(#b-ahm)"/>
+          <text class="t b" x="204" y="236">Shutter button</text>
+          <text class="t s" x="204" y="254">ready at once</text>
+        </svg>
+        <figcaption>The preview plays inside the page. The customer sees the guide frame at once and does not tap anything first.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker">02 · Why it happens</div>
+    <h2>The app setting decides, not the web page</h2>
+    <p>Stream Capture shows the camera in an HTML <code>&lt;video&gt;</code> element. It asks for inline playback with the <code>playsinline</code> attribute. In an app, iOS obeys this attribute only when the app's <code>WKWebView</code> allows inline media playback. If the app does not allow it, iOS plays every video in its full-screen player.</p>
+    <figure>
+      <div class="scroll">
+        <svg viewBox="0 0 880 284" role="img" aria-label="Stream Capture calls video.play with playsinline and muted. The host app's WKWebView reads allowsInlineMediaPlayback. If true, the preview plays inline in the page. If false, which is the iPhone default, iOS opens the native full-screen player.">
+          <defs>
+            <marker id="c-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="c-aha" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah acc" d="M0,0 L10,5 L0,10 z"/></marker>
+            <marker id="c-ahb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path class="ah bad" d="M0,0 L10,5 L0,10 z"/></marker>
+          </defs>
+          <text class="t s" x="20" y="84">Web page</text>
+          <rect class="node" x="20" y="98" width="220" height="96" rx="6"/>
+          <text class="t h mid" x="130" y="128">Stream Capture</text>
+          <text class="t mono mid" x="130" y="152">video.play()</text>
+          <text class="t s mid" x="130" y="176">playsinline · muted · autoplay</text>
+
+          <line class="ln" x1="240" y1="146" x2="282" y2="146" marker-end="url(#c-ah)"/>
+
+          <text class="t s" x="290" y="84">Host app (native)</text>
+          <rect class="node key" x="290" y="98" width="270" height="96" rx="6"/>
+          <text class="t s mid" x="425" y="124">The app's WKWebView reads</text>
+          <text class="t mono b mid" x="425" y="150">allowsInlineMediaPlayback</text>
+          <text class="t s mid" x="425" y="176">from its WKWebViewConfiguration</text>
+
+          <path class="ln acc" d="M560,128 H600 V64 H632" marker-end="url(#c-aha)"/>
+          <text class="t b acc" x="566" y="120">true</text>
+          <path class="ln badl" d="M560,166 H600 V228 H632" marker-end="url(#c-ahb)"/>
+          <text class="t b badt" x="566" y="184">false</text>
+
+          <rect class="node acc" x="640" y="22" width="226" height="84" rx="6"/>
+          <text class="t b acc mid" x="753" y="56">Inline in the page</text>
+          <text class="t s mid" x="753" y="78">guide frame and shutter visible</text>
+
+          <rect class="node bad" x="640" y="186" width="226" height="84" rx="6"/>
+          <text class="t b badt mid" x="753" y="214">Native full-screen player</text>
+          <text class="t s mid" x="753" y="236">customer must tap × first</text>
+          <text class="t s mid" x="753" y="256">default on iPhone</text>
+        </svg>
+      </div>
+      <figcaption><b>The setting is read only when the web view is created.</b> A change to it after that has no effect. See the caution in section 03.</figcaption>
+    </figure>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Where the page runs</th><th>Inline playback</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr class="badrow"><td>iPhone app, <code>WKWebView</code> with the default configuration</td><td><code>false</code> (iPhone default)</td><td class="res-bad">Full-screen player</td></tr>
+          <tr class="goodrow"><td>iPhone app, <code>WKWebView</code> with the fix</td><td><code>true</code></td><td class="res-good">Inline, as designed</td></tr>
+          <tr><td>iPad app, <code>WKWebView</code></td><td><code>true</code> (iPad default)</td><td>Inline. <span class="muted">A test on iPad does not show the problem.</span></td></tr>
+          <tr><td>Safari on iPhone</td><td>Obeys <code>playsinline</code></td><td>Inline</td></tr>
+          <tr><td>Android app, Android WebView</td><td>No such setting</td><td>Inline</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker">03 · The fix</div>
+    <h2>Allow inline media playback in the app's web view</h2>
+    <p>Make this change where your app creates the web view that opens the ID capture page. Use the example for your framework. The second setting lets the muted preview start without a tap. It is recommended, but the first setting is the fix.</p>
+
+    <div class="codes">
+      <div class="code">
+        <div class="code-h"><div><b>Swift</b><span>UIKit or SwiftUI (in makeUIView)</span></div><button type="button" class="copy" data-copy>Copy</button></div>
+<pre><code><span class="k">let</span> config = WKWebViewConfiguration()
+config.allowsInlineMediaPlayback = <span class="k">true</span>
+config.mediaTypesRequiringUserActionForPlayback = []
+<span class="k">let</span> webView = WKWebView(frame: .zero, configuration: config)</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-h"><div><b>Objective-C</b></div><button type="button" class="copy" data-copy>Copy</button></div>
+<pre><code>WKWebViewConfiguration *config = [[WKWebViewConfiguration alloc] init];
+config.allowsInlineMediaPlayback = <span class="k">YES</span>;
+config.mediaTypesRequiringUserActionForPlayback = WKAudiovisualMediaTypeNone;
+WKWebView *webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:config];</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-h"><div><b>React Native</b><span>react-native-webview, also Expo</span></div><button type="button" class="copy" data-copy>Copy</button></div>
+<pre><code>&lt;WebView
+  source={{ uri }}
+  allowsInlineMediaPlayback
+  mediaPlaybackRequiresUserAction={<span class="k">false</span>}
+/&gt;</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-h"><div><b>Flutter</b><span>webview_flutter</span></div><button type="button" class="copy" data-copy>Copy</button></div>
+<pre><code><span class="k">import</span> 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
+
+<span class="k">final</span> params = WebKitWebViewControllerCreationParams(
+  allowsInlineMediaPlayback: <span class="k">true</span>,
+  mediaTypesRequiringUserAction: <span class="k">const</span> &lt;PlaybackMediaTypes&gt;{},
+);
+<span class="k">final</span> controller = WebViewController.fromPlatformCreationParams(params);</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-h"><div><b>Flutter</b><span>flutter_inappwebview</span></div><button type="button" class="copy" data-copy>Copy</button></div>
+<pre><code>InAppWebView(
+  initialSettings: InAppWebViewSettings(
+    allowsInlineMediaPlayback: <span class="k">true</span>,
+    mediaPlaybackRequiresUserGesture: <span class="k">false</span>,
+  ),
+)</code></pre>
+      </div>
+
+      <div class="code">
+        <div class="code-h"><div><b>Cordova</b><span>config.xml</span></div><button type="button" class="copy" data-copy>Copy</button></div>
+<pre><code>&lt;preference name="AllowInlineMediaPlayback" value="true" /&gt;</code></pre>
+      </div>
+    </div>
+
+    <div class="callout">
+      <b>CAUTION</b>
+      <p>Set the option on the configuration <strong>before</strong> you create the <code>WKWebView</code>. The <code>webView.configuration</code> property gives a copy. A change to that copy does nothing, and iOS shows no error.</p>
+<pre><code><span class="c">// Does not work: the web view already exists.</span>
+<span class="k">let</span> webView = WKWebView()
+<span class="x">webView.configuration.allowsInlineMediaPlayback = true</span></code></pre>
+      <p>If your app makes its web views in a shared factory, a container for mini-apps, or a third-party SDK, make the change there. If the team says "we already set this", examine this point first.</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="kicker">04 · How to confirm the fix</div>
+    <h2>Test on an iPhone, not an iPad</h2>
+    <ol class="steps">
+      <li>Install the app build with the change on an iPhone. An iPad allows inline playback by default, so it does not show the problem.</li>
+      <li>Open the ID photo step in the app and allow camera access.</li>
+      <li><b>Pass:</b> the live camera picture shows inside the page, with the guide frame and the shutter button. No black player and no × button show first.</li>
+      <li><b>Optional, with Safari Web Inspector:</b> in debug builds, set <code>webView.isInspectable = true</code> (iOS 16.4 and later). Connect the iPhone to a Mac and open the page in Safari's Develop menu. In the console, type <code>document.querySelector("video.camera").webkitDisplayingFullscreen</code>. The result must be <code>false</code>. The result <code>true</code> means that the full-screen player is open.</li>
+    </ol>
+  </section>
+
+  <section>
+    <div class="kicker">05 · Why the web page cannot fix it</div>
+    <h2>The page already asks for inline playback</h2>
+    <p>The preview element in Stream Capture has the three attributes that inline playback needs:</p>
+<pre><code>&lt;video autoPlay playsInline muted /&gt;</code></pre>
+    <ul class="limits">
+      <li><b>iOS ignores <code>playsinline</code></b><span>When the app does not allow inline playback, iOS ignores this attribute. No other HTML or JavaScript option changes this.</span></li>
+      <li><b>Code cannot close the player</b><span>If the page closes the full-screen player with code, iOS pauses the video. When the page plays the video again, the full-screen player opens again.</span></li>
+      <li><b>Do not tell customers to tap ×</b><span>After the customer closes the player, iOS can keep the video paused. Then the guide frame shows a still picture, and the photo can show an old picture. Fix the app setting.</span></li>
+    </ul>
+  </section>
+
+  <section>
+    <div class="kicker">06 · Also check</div>
+    <h2>Other camera settings in the same area</h2>
+    <p class="muted">These items do not cause the full-screen player. Examine them while you change the web view.</p>
+    <ul class="limits">
+      <li><b>Camera usage text</b><span>The app's <code>Info.plist</code> must have <code>NSCameraUsageDescription</code>. Without it, WebKit refuses camera access and the camera does not start.</span></li>
+      <li><b>A second permission prompt</b><span>From iOS 15, a <code>WKWebView</code> can ask for camera permission again for each site. To prevent this, implement <code>webView(_:requestMediaCapturePermissionFor:initiatedByFrame:type:decisionHandler:)</code> in your <code>WKUIDelegate</code>. Grant only for your own trusted host. In React Native, use <code>mediaCapturePermissionGrantType="grantIfSameHostElsePrompt"</code>.</span></li>
+      <li><b>HTTPS only</b><span>The camera is available only on an HTTPS page. On an HTTP page, <code>navigator.mediaDevices</code> is undefined.</span></li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Source: the stream-capture repository. The preview element is in <code>stream-capture/stream-capture.tsx</code>.</p>
+    <p>This page is one self-contained file. You can save it and send it as an attachment.</p>
+  </footer>
+</div>
+<script>
+(function () {
+  // Auto removes data-theme, so the page follows prefers-color-scheme. The choice is shared with
+  // the other docs pages through one localStorage key.
+  var root = document.documentElement;
+  var buttons = document.querySelectorAll("[data-theme-choice]");
+  function mark(choice) {
+    buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-choice") === choice)); });
+  }
+  function apply(choice) {
+    if (choice === "light" || choice === "dark") root.setAttribute("data-theme", choice);
+    else root.removeAttribute("data-theme");
+    mark(choice);
+    try { localStorage.setItem("docs/theme", choice); } catch (e) {}
+  }
+  var saved = null;
+  try { saved = localStorage.getItem("docs/theme"); } catch (e) {}
+  mark(saved === "light" || saved === "dark" ? saved : "system");
+  buttons.forEach(function (b) { b.addEventListener("click", function () { apply(b.getAttribute("data-theme-choice")); }); });
+
+  // The clipboard API needs a secure context and can be refused; when it is, select the code so a
+  // manual copy is one keystroke away.
+  document.querySelectorAll("[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var code = b.closest(".code").querySelector("pre code");
+      function done(label) { b.textContent = label; setTimeout(function () { b.textContent = "Copy"; }, 1600); }
+      function select() {
+        var range = document.createRange();
+        range.selectNodeContents(code);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        done("Selected");
+      }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(code.textContent).then(function () { done("Copied"); }, select);
+      } else {
+        select();
+      }
+    });
+  });
+})();
+</script>
+</body>
+</html>
